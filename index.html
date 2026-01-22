@@ -5,100 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
     <style>
-        /* 頁面基礎設定 */
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #f0f0f0; 
-            display: flex; 
-            flex-direction: column;
-            justify-content: flex-start; /* 改為從上方開始排列 */
-            align-items: center; 
-            height: 100vh; 
-            height: 100dvh; /* 針對手機瀏覽器優化的視窗高度單位 */
-            overflow: hidden; 
+        /* 關鍵修正：使用 Flexbox 佈局 
+           這能確保「控制列」永遠在最下面，「書本」自動填滿剩下的空間
+        */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%; /* 舊瀏覽器相容 */
+            height: 100dvh; /* 針對手機動態高度優化 */
+            overflow: hidden; /* 禁止整個頁面捲動 */
+            background-color: #f0f0f0;
             font-family: sans-serif;
         }
 
-        /* --- 1. 修改：大幅縮減書本容器高度，讓下方留白更多 --- */
-        .container { 
-            width: 100%; 
-            /* 這裡減去的 120px 是為了留給下方的控制列，讓書本往上浮 */
-            height: calc(100% - 120px); 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            padding: 10px; 
-            box-sizing: border-box;
+        body {
+            display: flex;
+            flex-direction: column; /* 垂直排列：上面是書，下面是按鈕 */
         }
 
-        #book { 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
-        }
-
-        .page { 
-            background-color: white; 
-            width: 100%; 
-            height: 100%; 
-        }
-        
-        .page img { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: contain; 
-        }
-
-        /* --- 2. 修改：加高底部控制列，並避開手機 Home Bar --- */
-        .controls {
-            position: fixed;
-            bottom: 0;
-            left: 0;
+        /* --- 上半部：書本顯示區 --- */
+        .book-wrapper {
+            flex: 1; /* 自動佔據剩餘的所有空間 */
             width: 100%;
-            height: 80px; /* 加高控制列高度 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* 如果書太大，強制藏起來避免撐開頁面 */
+            position: relative;
+            padding: 10px; /* 四周留白，避免貼邊 */
+            box-sizing: border-box;
+            
+            /* 測試用：如果您看到紅色框框完整，但圖片被切，代表是圖片比例問題 */
+            /* border: 2px solid red; */ 
+        }
+
+        #book {
+            /* 書本陰影 */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .page {
+            background-color: white;
+            /* 確保頁面內容不會溢出 */
+            overflow: hidden; 
+        }
+
+        .page img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* 確保圖片完整顯示，不會被裁切 */
+        }
+
+        /* --- 下半部：控制面板 --- */
+        .controls {
+            flex-shrink: 0; /* 禁止被壓縮 */
+            height: 80px;   /* 固定高度 */
             background-color: #fff;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: center;
-            align-items: center; /* 垂直置中 */
-            gap: 15px;
+            align-items: center;
+            gap: 10px;
             z-index: 100;
-            /* iPhone X+ 底部安全區域設定 */
-            padding-bottom: env(safe-area-inset-bottom); 
-            padding-bottom: 20px; /* 額外再多留一點空間 */
-            box-sizing: border-box; /* 確保 padding 不會撐爆高度 */
+            
+            /* iPhone 底部安全區適配 */
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
         .btn {
             background-color: #333;
             color: white;
             border: none;
-            padding: 10px 18px; /* 按鈕稍微加大一點比較好按 */
+            padding: 10px 15px;
             border-radius: 5px;
             font-size: 14px;
             cursor: pointer;
+            white-space: nowrap; /* 防止按鈕文字換行 */
         }
         
         .btn:active { background-color: #555; }
 
         .page-info {
-            font-size: 16px;
+            font-size: 14px;
             color: #333;
             font-weight: bold;
+            min-width: 50px;
+            text-align: center;
         }
 
         .jump-input {
-            width: 40px;
+            width: 35px;
             padding: 8px;
             text-align: center;
             border: 1px solid #ccc;
             border-radius: 4px;
-            font-size: 16px; /* 防止 iOS 輸入時自動放大 */
+            font-size: 16px; 
         }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="book-wrapper">
     <div id="book">
         <div class="page"><img src="0.JPG"></div>
         <div class="page"><img src="1.JPG"></div>
@@ -125,16 +133,26 @@
         const bookElement = document.getElementById("book");
         
         const pageFlip = new St.PageFlip(bookElement, {
+            // 設定您的原始圖片比例
             width: 1080, 
             height: 1920,
-            size: "stretch",
-            minWidth: 315,
+            
+            // 關鍵修改：讓書本適應容器，而不是強制固定大小
+            size: "stretch", 
+            
+            // 縮小最小限制，讓它在小螢幕也能縮得夠小
+            minWidth: 200,   
+            minHeight: 300,
+            
             maxWidth: 1000,
-            minHeight: 400,
             maxHeight: 1920,
+            
             maxShadowOpacity: 0.5,
             showCover: true,
-            mobileScrollSupport: true
+            mobileScrollSupport: true,
+            
+            // 強制單頁模式 (在手機上更穩定)
+            usePortrait: true 
         });
 
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
@@ -165,6 +183,7 @@
             }
         });
         
+        // 視窗大小改變時更新
         window.addEventListener('resize', () => {
             pageFlip.updateFromHtml(document.querySelectorAll(".page"));
         });
