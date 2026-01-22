@@ -3,49 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>手機翻頁電子書</title>
+    <title>精拓生技 - 電子手冊</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        .container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        /* 設定顯示區域比例 */
-        #book { box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .page { background-color: white; width: 100%; height: 100%; }
-        .page img { width: 100%; height: 100%; object-fit: contain; }
+        /* 頁面基礎設定 */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f0f0f0; /* 背景改淺灰色比較不刺眼 */
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            overflow: hidden; 
+            font-family: sans-serif;
+        }
+
+        /* --- 1. 修改：書本容器增加縮放限制，避免貼邊 --- */
+        .container { 
+            width: 100%; 
+            height: calc(100% - 60px); /* 預留底部控制列的高度 */
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            padding: 10px; /* 四周留白 */
+            box-sizing: border-box;
+        }
+
+        /* 書本陰影 */
+        #book { 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
+        }
+
+        .page { 
+            background-color: white; 
+            width: 100%; 
+            height: 100%; 
+        }
+        
+        /* 圖片保持比例，不變形 */
+        .page img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain; 
+        }
+
+        /* --- 2. 新增：底部控制列樣式 --- */
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: #fff;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .btn {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .btn:active { background-color: #555; }
+
+        .page-info {
+            font-size: 16px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        /* 跳轉輸入框 */
+        .jump-input {
+            width: 40px;
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="book">
-        <div class="page"><img src="0.JPG"></div>
-        <div class="page"><img src="1.JPG"></div>
+        <div class="page"><img src="0.jpg"></div>
+        <div class="page"><img src="1.jpg"></div>
+        <div class="page"><img src="2.jpg"></div>
         </div>
 </div>
 
+<div class="controls">
+    <button class="btn" id="prevBtn">上一頁</button>
+    
+    <div class="page-info">
+        <span id="currentPage">1</span> / <span id="totalPages">--</span>
+    </div>
+
+    <input type="number" id="jumpInput" class="jump-input" placeholder="#">
+    <button class="btn" id="goBtn">跳轉</button>
+
+    <button class="btn" id="nextBtn">下一頁</button>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const pageFlip = new St.PageFlip(document.getElementById("book"), {
+        const bookElement = document.getElementById("book");
+        
+        const pageFlip = new St.PageFlip(bookElement, {
             width: 1080, 
             height: 1920,
-            size: "stretch", // 自動縮放以適應螢幕
+            size: "stretch",     // 拉伸模式
             minWidth: 315,
-            maxWidth: 1080,
-            minHeight: 560,
+            maxWidth: 1000,      // 限制最大寬度，避免電腦版太大
+            minHeight: 400,
             maxHeight: 1920,
             maxShadowOpacity: 0.5,
-            showCover: true, // 第一張為封面
-            mobileScrollSupport: true // 支援手機觸控翻頁
+            showCover: true,
+            mobileScrollSupport: true
         });
 
-        // 載入頁面
+        // 1. 載入圖片 (這裡會自動抓取代碼中的 .page 元素)
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
 
-        // 自動監測螢幕旋轉並調整
+        // 2. 初始化總頁數顯示
+        // PageFlip 需要一點時間載入，我們設個延遲或在 'init' 後抓取
+        setTimeout(() => {
+            document.getElementById("totalPages").innerText = pageFlip.getPageCount();
+        }, 500);
+
+        // 3. 監聽「翻頁事件」，更新頁碼數字
+        pageFlip.on('flip', (e) => {
+            // e.data 是目前的頁碼索引 (0開始)，所以要 +1
+            document.getElementById("currentPage").innerText = e.data + 1;
+        });
+
+        // 4. 按鈕功能綁定
+        document.getElementById("prevBtn").addEventListener('click', () => {
+            pageFlip.flipPrev();
+        });
+
+        document.getElementById("nextBtn").addEventListener('click', () => {
+            pageFlip.flipNext();
+        });
+
+        // 5. 跳轉功能綁定
+        document.getElementById("goBtn").addEventListener('click', () => {
+            const inputVal = document.getElementById("jumpInput").value;
+            const pageNum = parseInt(inputVal);
+            
+            // 檢查輸入是否合法 (1 ~ 總頁數)
+            if (pageNum >= 1 && pageNum <= pageFlip.getPageCount()) {
+                pageFlip.flip(pageNum - 1); // 程式碼索引是從 0 開始，所以要 -1
+            } else {
+                alert("頁數超出範圍！");
+            }
+        });
+        
+        // 自動調整視窗大小
         window.addEventListener('resize', () => {
             pageFlip.updateFromHtml(document.querySelectorAll(".page"));
         });
     });
 </script>
+
 </body>
 </html>
