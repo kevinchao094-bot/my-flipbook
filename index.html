@@ -4,14 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
     <style>
         /* --- 1. 基礎設定 --- */
         * { box-sizing: border-box; }
         
         body { 
             margin: 0; padding: 0; 
-            /* 背景色改為深灰，接近您的截圖風格 */
-            background-color: #2b2b2b; 
+            background-color: #2b2b2b; /* 深灰背景 */
             height: 100vh; height: 100dvh; 
             width: 100vw;
             display: flex;
@@ -19,38 +21,42 @@
             overflow: hidden; 
         }
 
-        /* --- 2. 舞台區域 --- */
+        /* --- 2. 舞台區域 (Swiper 容器) --- */
         .stage-container {
             flex: 1; 
             width: 100%;
+            /* 上下保留 25px 空間 */
+            padding: 25px 0; 
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative;
-            overflow: hidden;
-            
-            /* --- 您要求的：保留上下空間 --- */
-            padding: 25px 0; 
         }
 
-        /* --- 3. 書本本體 --- */
-        #book { 
-            /* 加上陰影讓紙張浮起來 */
-            box-shadow: 0 0 30px rgba(0,0,0,0.6);
-            visibility: hidden; /* 計算好再顯示 */
-            background-color: #fff;
+        .swiper {
+            width: 100%;
+            height: 100%;
         }
 
-        .page { 
-            background-color: #fff;
-            width: 100%; height: 100%; 
-            overflow: hidden;
+        .swiper-slide {
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        
-        .page img { 
-            width: 100%; height: 100%; 
-            object-fit: fill; /* 強制填滿 */
+
+        /* --- 3. 圖片設定 --- */
+        .swiper-slide img {
             display: block;
+            /* 這行是關鍵：
+               contain 代表圖片會自動縮放，「完整顯示」在格子裡
+               不會被切掉，也不會變形，且自動居中
+            */
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            
+            /* 加一點陰影增加質感 */
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
         }
 
         /* --- 4. 底部控制列 --- */
@@ -87,14 +93,16 @@
 </head>
 <body>
 
-<div class="stage-container" id="stage">
-    <div id="book">
-        <div class="page"><img src="0.JPG" alt="Page 1"></div>
-        <div class="page"><img src="1.JPG" alt="Page 2"></div>
-        </div>
+<div class="stage-container">
+    <div class="swiper mySwiper">
+        <div class="swiper-wrapper">
+            <div class="swiper-slide"><img src="0.JPG" alt="Page 1"></div>
+            <div class="swiper-slide"><img src="1.JPG" alt="Page 2"></div>
+            </div>
+    </div>
 </div>
 
-<div class="controls" id="controls">
+<div class="controls">
     <button class="btn" id="prevBtn">上一頁</button>
     <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">--</span></div>
     <input type="number" id="jumpInput" class="jump-input" placeholder="#">
@@ -102,85 +110,63 @@
     <button class="btn" id="nextBtn">下一頁</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const bookElement = document.getElementById("book");
-        const stage = document.getElementById("stage");
         
-        // --- 設定：圖片原始比例 (1080x1920) ---
-        const ORIGINAL_W = 1080;
-        const ORIGINAL_H = 1920;
-        const RATIO = ORIGINAL_W / ORIGINAL_H;
-
-        // --- 核心邏輯：計算單頁最大尺寸 ---
-        function updateDimensions() {
-            // 1. 取得舞台可用空間 (減去 CSS 設定的 padding 50px)
-            const stageW = stage.clientWidth;
-            const stageH = stage.clientHeight - 50; 
-
-            // 2. 計算目標尺寸 (Contain 模式)
-            // 先嘗試以高度為主
-            let newH = stageH;
-            let newW = newH * RATIO;
-
-            // 如果寬度爆出去了，改以寬度為主
-            if (newW > stageW) {
-                newW = stageW;
-                newH = newW / RATIO;
-            }
-
-            // 3. 套用尺寸
-            bookElement.style.width = newW + 'px';
-            bookElement.style.height = newH + 'px';
-            bookElement.style.visibility = 'visible';
-        }
-
-        // 初始化尺寸
-        updateDimensions();
-
-        // --- 啟動 PageFlip (強制單頁模式) ---
-        const pageFlip = new St.PageFlip(bookElement, {
-            // 關鍵 1：讓套件填滿我們用 JS 算好的 div
-            size: 'stretch', 
+        // --- 初始化 Swiper ---
+        const swiper = new Swiper(".mySwiper", {
+            // 基礎設定
+            slidesPerView: 1,      // 強制一次只顯示一頁 (解決雙頁問題的核心)
+            spaceBetween: 30,      // 頁面之間的間距
+            centeredSlides: true,  // 居中顯示
             
-            // 關鍵 2：強制直式模式 (Portrait)。這會禁止左右兩頁併排，永遠只顯示一頁。
-            usePortrait: true, 
-
-            // 關鍵 3：關閉封面模式。這能讓第1頁置中，而不是偏右。
-            showCover: false,
-
-            width: ORIGINAL_W,
-            height: ORIGINAL_H,
-            minWidth: 100, maxWidth: 5000,
-            minHeight: 100, maxHeight: 5000,
-            maxShadowOpacity: 0.5,
-            mobileScrollSupport: false // 禁止捲動干擾
+            // 翻頁效果 (可以改成 'slide', 'fade', 'cube', 'coverflow', 'flip')
+            effect: 'slide',       
+            speed: 400,            // 翻頁速度
+            
+            // 允許鍵盤控制
+            keyboard: {
+                enabled: true,
+            },
+            
+            // 允許滑鼠滾輪控制
+            mousewheel: true,
         });
 
-        pageFlip.loadFromHTML(document.querySelectorAll(".page"));
+        // --- 頁數同步邏輯 ---
+        const totalPagesEl = document.getElementById("totalPages");
+        const currentPageEl = document.getElementById("currentPage");
 
-        // --- 事件綁定 ---
-        pageFlip.on('flip', (e) => {
-            document.getElementById("currentPage").innerText = e.data + 1;
+        // 初始化總頁數
+        // 注意：Swiper 的 slide 是從 0 開始算，長度是 slides.length
+        totalPagesEl.innerText = swiper.slides.length;
+
+        // 監聽翻頁事件
+        swiper.on('slideChange', function () {
+            // realIndex 是當前頁面的索引 (0, 1, 2...)，所以要 +1
+            currentPageEl.innerText = swiper.realIndex + 1;
         });
 
-        setTimeout(() => {
-            document.getElementById("totalPages").innerText = pageFlip.getPageCount();
-        }, 500);
+        // --- 按鈕功能綁定 ---
+        document.getElementById("prevBtn").addEventListener('click', () => {
+            swiper.slidePrev();
+        });
 
-        document.getElementById("prevBtn").addEventListener('click', () => pageFlip.flipPrev());
-        document.getElementById("nextBtn").addEventListener('click', () => pageFlip.flipNext());
+        document.getElementById("nextBtn").addEventListener('click', () => {
+            swiper.slideNext();
+        });
+
         document.getElementById("goBtn").addEventListener('click', () => {
             const val = parseInt(document.getElementById("jumpInput").value);
-            if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
+            // 檢查輸入是否合法 (1 ~ 總頁數)
+            if (val >= 1 && val <= swiper.slides.length) {
+                // 跳轉到指定頁 (API 接受的是 index，所以要 -1)
+                swiper.slideTo(val - 1);
+            }
         });
 
-        // 視窗調整時重算
-        window.addEventListener('resize', () => {
-            updateDimensions();
-        });
     });
 </script>
 
