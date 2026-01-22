@@ -16,7 +16,13 @@
             width: 100vw;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            touch-action: none; /* 禁止瀏覽器預設手勢 */
+            
+            /* 解決方案 B-1 加強版：
+               直接設為 none，告訴瀏覽器「不要處理任何手勢（包含滑動、縮放）」，
+               全部交給 JS 處理。這比 manipulation 更徹底。
+            */
+            touch-action: none; 
+            
             user-select: none;
             -webkit-user-select: none;
         }
@@ -30,7 +36,7 @@
             align-items: center;
         }
 
-        /* --- 書本區域 --- */
+        /* 觸控區 */
         .stage-area {
             flex: 1;
             width: 100%;
@@ -41,6 +47,8 @@
             perspective: 1500px;
             padding: 10px;
             position: relative;
+            /* 再次強調禁止原生手勢 */
+            touch-action: none; 
         }
 
         .hint-text {
@@ -147,47 +155,18 @@
         }
         button:disabled { background: #ccc; opacity: 0.5; }
         
-        .page-info { 
-            font-weight: bold; 
-            color: #333; 
-            font-size: 14px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-        
-        .jump-box { 
-            display: flex; 
-            align-items: center; 
-            gap: 5px; 
-            border-left: 1px solid #ccc; 
-            padding-left: 8px; 
-            flex-shrink: 1; 
-        }
-        
-        input { 
-            width: 35px; 
-            text-align: center; 
-            border-radius: 5px; 
-            border: 1px solid #ddd; 
-            padding: 5px 0;
-        }
-
-        .btn-go {
-            width: auto;
-            border-radius: 15px;
-            padding: 0 10px;
-            font-size: 12px;
-            height: 30px;
-        }
+        .page-info { font-weight: bold; color: #333; font-size: 14px; white-space: nowrap; flex-shrink: 0; }
+        .jump-box { display: flex; align-items: center; gap: 5px; border-left: 1px solid #ccc; padding-left: 8px; flex-shrink: 1; }
+        input { width: 35px; text-align: center; border-radius: 5px; border: 1px solid #ddd; padding: 5px 0; }
+        .btn-go { width: auto; border-radius: 15px; padding: 0 10px; font-size: 12px; height: 30px; }
 
     </style>
 </head>
 <body>
 
-    <div class="viewport-container" id="touch-layer">
-        <div class="stage-area">
+    <div class="viewport-container">
+        <div class="stage-area" id="touch-stage">
             <div class="hint-text" id="status-hint">滑動翻頁 • 雙指縮放</div>
-            
             <div class="book" id="book">
                 <div class="page active" id="page-0">
                     <div class="img-container" id="zoom-container-0">
@@ -205,13 +184,8 @@
         <div class="controls">
             <div class="control-panel">
                 <button id="btn-prev" onclick="manualPrev()">❮</button>
-                
-                <span class="page-info">
-                    <span id="current-page">1</span> / <span id="total-pages">2</span>
-                </span>
-                
+                <span class="page-info"><span id="current-page">1</span> / <span id="total-pages">2</span></span>
                 <button id="btn-next" onclick="manualNext()">❯</button>
-                
                 <div class="jump-box">
                     <input type="number" id="jump-input" placeholder="頁">
                     <button class="btn-go" onclick="jumpToPage()">GO</button>
@@ -224,14 +198,7 @@
         const totalImages = 2;
         let currentIndex = 0;
 
-        // --- 狀態變數 ---
-        let state = {
-            scale: 1,
-            x: 0,
-            y: 0
-        };
-
-        // 觸控變數
+        let state = { scale: 1, x: 0, y: 0 };
         let startDist = 0; 
         let startScale = 1; 
         let startX = 0;
@@ -241,16 +208,34 @@
         let isPinching = false;
         let isDragging = false;
 
-        const touchLayer = document.getElementById('touch-layer');
+        const touchStage = document.getElementById('touch-stage');
         const hintText = document.getElementById('status-hint');
 
         function init() {
             document.getElementById('total-pages').innerText = totalImages;
             updateUI();
 
-            touchLayer.addEventListener('touchstart', handleTouchStart, { passive: false });
-            touchLayer.addEventListener('touchmove', handleTouchMove, { passive: false });
-            touchLayer.addEventListener('touchend', handleTouchEnd, { passive: false });
+            // --- 解決方案 B-3：iOS 專用防禦 (最重要) ---
+            // 監聽 gesturestart 並阻止它，這能讓 iOS Safari 不會執行原生的兩指縮放網頁
+            document.addEventListener('gesturestart', function(e) {
+                e.preventDefault();
+            });
+
+            // --- 防止雙擊放大 (B-2 的延伸) ---
+            // 雖然我們已經用 touch-action: none，但加這層 JS 防禦更保險
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+
+            // 綁定我們的自定義觸控事件
+            touchStage.addEventListener('touchstart', handleTouchStart, { passive: false });
+            touchStage.addEventListener('touchmove', handleTouchMove, { passive: false });
+            touchStage.addEventListener('touchend', handleTouchEnd, { passive: false });
         }
 
         function getDistance(touches) {
@@ -260,21 +245,21 @@
             );
         }
 
-        // --- 1. Touch Start ---
         function handleTouchStart(e) {
-            const touches = e.touches;
+            // --- 解決方案 B-2 加強 ---
+            // 如果偵測到兩指以上，強制阻止原生行為，確保只執行我們的邏輯
+            if (e.touches.length > 1) {
+                e.preventDefault(); 
+            }
 
+            const touches = e.touches;
             if (touches.length === 2) {
-                // === 雙指：開始縮放 ===
                 isPinching = true;
                 isDragging = false;
                 startDist = getDistance(touches);
                 startScale = state.scale;
-                e.preventDefault();
                 hintText.innerText = "縮放中...";
             } else if (touches.length === 1) {
-                // === 單指：準備滑動或拖曳 ===
-                // 這裡已經移除了雙擊偵測的代碼
                 isPinching = false;
                 isDragging = false; 
                 startX = touches[0].clientX;
@@ -284,62 +269,48 @@
             }
         }
 
-        // --- 2. Touch Move ---
         function handleTouchMove(e) {
-            e.preventDefault(); 
+            e.preventDefault(); // 這裡也很重要，防止單指拖曳時畫面捲動
             const touches = e.touches;
 
             if (isPinching && touches.length === 2) {
-                // === 雙指縮放 ===
+                // 自定義縮放邏輯
                 const currentDist = getDistance(touches);
                 const scaleFactor = currentDist / startDist;
-                
                 let newScale = startScale * scaleFactor;
                 newScale = Math.max(1, Math.min(newScale, 4));
-
                 state.scale = newScale;
                 updateTransform();
 
             } else if (touches.length === 1) {
-                // === 單指移動 ===
+                // 自定義移動邏輯
                 const deltaX = touches[0].clientX - lastX;
                 const deltaY = touches[0].clientY - lastY;
                 lastX = touches[0].clientX;
                 lastY = touches[0].clientY;
 
                 if (state.scale > 1.05) {
-                    // 放大狀態：拖曳圖片
                     state.x += deltaX;
                     state.y += deltaY;
                     updateTransform();
                     isDragging = true; 
                     hintText.innerText = "拖曳移動";
                 } else {
-                    // 原始大小：標記為拖曳中，讓 touchend 判斷翻頁
                     isDragging = true; 
                 }
             }
         }
 
-        // --- 3. Touch End ---
         function handleTouchEnd(e) {
-            // 如果剛結束縮放
             if (isPinching && e.touches.length < 2) {
                 isPinching = false;
-                // 自動彈回
-                if (state.scale < 1.1) {
-                    resetZoom();
-                }
+                if (state.scale < 1.1) resetZoom();
                 return;
             }
-
-            // 單指操作結束
             if (!isPinching && isDragging) {
-                // 只有在未放大時才翻頁
                 if (state.scale <= 1.05) {
                     const endX = e.changedTouches[0].clientX;
                     const totalDeltaX = endX - startX;
-
                     if (Math.abs(totalDeltaX) > 50) {
                         if (totalDeltaX < 0) nextPage();
                         else prevPage();
@@ -357,25 +328,20 @@
 
         function resetZoom() {
             state = { scale: 1, x: 0, y: 0 };
-            
             const container = document.getElementById(`zoom-container-${currentIndex}`);
             if (container) {
                 container.style.transition = 'transform 0.3s ease-out';
                 container.style.transform = `translate(0px, 0px) scale(1)`;
-                setTimeout(() => {
-                    container.style.transition = 'none';
-                }, 300);
+                setTimeout(() => { container.style.transition = 'none'; }, 300);
             }
             hintText.innerText = "滑動翻頁 • 雙指縮放";
         }
 
-        // --- 翻頁與 UI ---
         function nextPage() {
             if (currentIndex >= totalImages - 1) return;
             const oldContainer = document.getElementById(`zoom-container-${currentIndex}`);
             if(oldContainer) oldContainer.style.transform = 'none';
             state = { scale: 1, x: 0, y: 0 };
-
             document.getElementById(`page-${currentIndex}`).classList.add('flipped');
             currentIndex++;
             updateUI();
@@ -386,7 +352,6 @@
             const oldContainer = document.getElementById(`zoom-container-${currentIndex}`);
             if(oldContainer) oldContainer.style.transform = 'none';
             state = { scale: 1, x: 0, y: 0 };
-
             currentIndex--;
             document.getElementById(`page-${currentIndex}`).classList.remove('flipped');
             updateUI();
@@ -399,11 +364,9 @@
             const input = document.getElementById('jump-input');
             let targetPage = parseInt(input.value);
             if (isNaN(targetPage) || targetPage < 1 || targetPage > totalImages) return;
-
             const oldContainer = document.getElementById(`zoom-container-${currentIndex}`);
             if(oldContainer) oldContainer.style.transform = 'none';
             state = { scale: 1, x: 0, y: 0 };
-
             let targetIndex = targetPage - 1;
             if (targetIndex > currentIndex) {
                 for (let i = currentIndex; i < targetIndex; i++) document.getElementById(`page-${i}`).classList.add('flipped');
