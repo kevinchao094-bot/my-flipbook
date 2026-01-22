@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>精拓生技 - 電子手冊 (單頁版)</title>
+    <title>精拓生技 - 電子手冊</title>
     <style>
-        /* 1. 基礎設定 */
+        /* --- 1. 全局設定 --- */
         * { box-sizing: border-box; }
+        
         body { 
             margin: 0; padding: 0; 
-            background-color: #333; 
+            background-color: #2b2b2b; /* 深灰背景，接近參考圖 */
             height: 100vh; height: 100dvh; 
             width: 100vw;
             display: flex;
@@ -17,68 +18,71 @@
             overflow: hidden; 
         }
 
-        /* 2. 舞台區域 */
+        /* --- 2. 舞台區域 (主要顯示區) --- */
+        /* 使用 Flexbox 確保內容絕對置中 */
         .stage-container {
-            flex: 1; 
+            flex: 1; /* 自動佔滿剩餘高度 */
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
             position: relative;
-            
-            /* --- 修改點 A：上下預留 25px --- */
-            padding: 25px 0; 
+            overflow: hidden;
+            /* 這裡不設 padding，改由 JS 計算時預留，控制更精準 */
         }
 
-        /* 3. 書本本體 */
+        /* --- 3. 書本容器 --- */
         #book { 
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            /* 預設陰影，增加立體感 */
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            
+            /* 初始隱藏，避免載入瞬間閃爍 */
             visibility: hidden; 
+            background-color: #fff;
         }
 
+        /* --- 4. 頁面圖片樣式 --- */
         .page { 
-            background-color: #fff;
             width: 100%; height: 100%; 
+            background-color: #fff;
             overflow: hidden;
         }
         
         .page img { 
             width: 100%; height: 100%; 
-            object-fit: contain; 
+            object-fit: fill; /* 強制填滿容器，因為容器比例已由 JS 精準控制 */
             display: block;
         }
 
-        /* 4. 底部控制列 */
+        /* --- 5. 底部控制列 --- */
         .controls {
-            height: auto;
-            min-height: 60px;
+            flex-shrink: 0; /* 禁止被壓縮 */
             background-color: #1a1a1a;
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 15px;
-            padding-top: 15px;
+            gap: 10px;
+            padding: 15px;
             padding-bottom: calc(env(safe-area-inset-bottom) + 15px);
-            z-index: 99;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+            z-index: 100;
+            border-top: 1px solid #333;
         }
 
         .btn {
-            background-color: #444; color: white;
-            border: 1px solid #555;
-            padding: 8px 15px;
-            border-radius: 5px; font-size: 14px;
-            cursor: pointer; white-space: nowrap;
+            background-color: #444; color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px; font-size: 14px;
+            cursor: pointer;
         }
-        .btn:active { background-color: #666; }
+        .btn:active { background-color: #666; transform: translateY(1px); }
         
-        .page-info { color: #fff; font-size: 14px; white-space: nowrap; }
+        .page-info { color: #ccc; font-size: 14px; min-width: 60px; text-align: center; }
         
         .jump-input {
-            width: 40px; padding: 5px;
-            text-align: center; background: #eee;
-            border: none; border-radius: 4px;
+            width: 40px; padding: 6px;
+            text-align: center; background: #333; color: #fff;
+            border: 1px solid #555; border-radius: 4px;
         }
     </style>
 </head>
@@ -86,12 +90,12 @@
 
 <div class="stage-container" id="stage">
     <div id="book">
-        <div class="page"><img src="0.JPG"></div>
-        <div class="page"><img src="1.JPG"></div>
+        <div class="page"><img src="0.JPG" alt="Page 1"></div>
+        <div class="page"><img src="1.JPG" alt="Page 2"></div>
         </div>
 </div>
 
-<div class="controls">
+<div class="controls" id="controls">
     <button class="btn" id="prevBtn">上一頁</button>
     <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">--</span></div>
     <input type="number" id="jumpInput" class="jump-input" placeholder="#">
@@ -105,84 +109,103 @@
     document.addEventListener('DOMContentLoaded', function() {
         const bookElement = document.getElementById("book");
         const stage = document.getElementById("stage");
+        const controls = document.getElementById("controls");
         
-        // --- 核心邏輯：計算最大尺寸 (自適應) ---
-        function resizeBook() {
-            // 1. 取得舞台目前的可用寬高
-            const stageW = stage.clientWidth;
-            
-            // --- 修改點 B：計算高度時，扣除上下的 padding (25px + 25px = 50px) ---
-            // 這樣才能保證書本不會蓋到預留空間
-            const stageH = stage.clientHeight - 50; 
-            
-            // 2. 設定目標比例 (單頁比例 1080 x 1920)
-            const targetRatio = 1080 / 1920;
-            const stageRatio = stageW / stageH;
+        // 設定圖片原始比例 (寬 / 高)
+        // 例如 1080 x 1920 = 0.5625
+        const ORIGINAL_WIDTH = 1080;
+        const ORIGINAL_HEIGHT = 1920;
+        const ASPECT_RATIO = ORIGINAL_WIDTH / ORIGINAL_HEIGHT;
 
+        // --- 核心函式：計算最佳單頁尺寸 ---
+        function updateBookDimensions() {
+            // 1. 取得視窗總尺寸
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            
+            // 2. 取得控制列高度
+            const controlsH = controls.offsetHeight;
+
+            // 3. 計算舞台可用高度
+            // 邏輯：總高度 - 控制列高度 - (上下各 25px 的留白)
+            const availableH = winH - controlsH - 50; 
+            const availableW = winW; // 寬度可以全用 (如果左右也要留白可減去)
+
+            // 4. 計算縮放後的尺寸 (Contain 模式：確保完整顯示不裁切)
             let newW, newH;
 
-            // 3. 判斷並計算最大適配尺寸 (Contain 模式)
-            if (stageRatio > targetRatio) {
-                // 舞台比較寬，高度是瓶頸
-                newH = stageH;
-                newW = stageH * targetRatio;
-            } else {
-                // 舞台比較窄，寬度是瓶頸
-                newW = stageW;
-                newH = stageW / targetRatio;
+            // 嘗試以「高度」為基準
+            newH = availableH;
+            newW = newH * ASPECT_RATIO;
+
+            // 如果算出來的寬度比螢幕還寬，改以「寬度」為基準
+            if (newW > availableW) {
+                newW = availableW;
+                newH = newW / ASPECT_RATIO;
             }
 
-            // 4. 套用尺寸
-            bookElement.style.width = newW + 'px';
-            bookElement.style.height = newH + 'px';
+            // 5. 將計算結果套用到 DOM
+            bookElement.style.width = Math.floor(newW) + 'px';
+            bookElement.style.height = Math.floor(newH) + 'px';
             bookElement.style.visibility = 'visible';
         }
 
         // 初始化計算
-        resizeBook();
+        updateBookDimensions();
 
-        // --- 啟動翻頁套件 ---
+        // --- 啟動 PageFlip ---
         const pageFlip = new St.PageFlip(bookElement, {
-            width: 1080,   
-            height: 1920,
-            size: "stretch", 
+            // 這裡設定 size: 'stretch'，意思是「讓套件自動填滿我們剛剛用 JS 算好的那個 div」
+            // 這樣可以確保大小完全由我們控制，套件不會亂算
+            size: 'stretch',
+            
+            // 重要：強制使用單頁模式 (Portrait)，即使在電腦上也不會變雙頁
+            usePortrait: true,
+            
+            // 這些數值只是參考比例，因為我們用了 stretch，實際大小看 div
+            width: ORIGINAL_WIDTH,
+            height: ORIGINAL_HEIGHT,
+            
+            // 翻頁參數
             minWidth: 100,
             maxWidth: 5000,
             minHeight: 100,
             maxHeight: 5000,
             maxShadowOpacity: 0.5,
-            showCover: true,
-            mobileScrollSupport: true,
-            
-            // --- 修改點 C：強制使用單頁模式 ---
-            // usePortrait: true 代表無論螢幕多寬，都像手機直式一樣只顯示一頁
-            usePortrait: true 
+            showCover: false, // 關閉封面模式，讓每一頁都平等顯示 (避免第一頁偏右)
+            mobileScrollSupport: false // 關閉捲動干擾
         });
 
+        // 載入頁面
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
 
-        // 更新總頁數
+        // --- 事件監聽 ---
+
+        // 頁數更新
+        pageFlip.on('flip', (e) => {
+            document.getElementById("currentPage").innerText = e.data + 1;
+        });
+
+        // 總頁數
         setTimeout(() => {
-            const count = pageFlip.getPageCount();
-            document.getElementById("totalPages").innerText = count > 0 ? count : "-";
+            document.getElementById("totalPages").innerText = pageFlip.getPageCount();
         }, 500);
 
-        // 翻頁監聽
-        pageFlip.on('flip', (e) => document.getElementById("currentPage").innerText = e.data + 1);
-
-        // 按鈕功能
+        // 按鈕控制
         document.getElementById("prevBtn").addEventListener('click', () => pageFlip.flipPrev());
         document.getElementById("nextBtn").addEventListener('click', () => pageFlip.flipNext());
         document.getElementById("goBtn").addEventListener('click', () => {
             const val = parseInt(document.getElementById("jumpInput").value);
-            if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
+            if (val && val >= 1 && val <= pageFlip.getPageCount()) {
+                pageFlip.flip(val - 1);
+            }
         });
 
-        // --- 監聽螢幕變化 ---
+        // 視窗縮放時重新計算大小
         window.addEventListener('resize', () => {
-            resizeBook(); 
-            // 這裡不需要 pageFlip.updateFromHtml，因為我們只是改了容器大小，
-            // CSS size: stretch 配合 resizeBook 改動 div 尺寸會自動處理
+            updateBookDimensions();
+            // 在這裡我們不需要呼叫 pageFlip.update()，
+            // 因為 size: 'stretch' 會自動跟隨父容器 (#book) 的大小變化
         });
     });
 </script>
