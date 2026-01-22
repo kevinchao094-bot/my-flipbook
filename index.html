@@ -2,35 +2,36 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
     <style>
         /* 頁面基礎設定 */
         body { 
             margin: 0; 
             padding: 0; 
-            background-color: #f0f0f0; /* 背景改淺灰色比較不刺眼 */
+            background-color: #f0f0f0; 
             display: flex; 
             flex-direction: column;
-            justify-content: center; 
+            justify-content: flex-start; /* 改為從上方開始排列 */
             align-items: center; 
             height: 100vh; 
+            height: 100dvh; /* 針對手機瀏覽器優化的視窗高度單位 */
             overflow: hidden; 
             font-family: sans-serif;
         }
 
-        /* --- 1. 修改：書本容器增加縮放限制，避免貼邊 --- */
+        /* --- 1. 修改：大幅縮減書本容器高度，讓下方留白更多 --- */
         .container { 
             width: 100%; 
-            height: calc(100% - 60px); /* 預留底部控制列的高度 */
+            /* 這裡減去的 120px 是為了留給下方的控制列，讓書本往上浮 */
+            height: calc(100% - 120px); 
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            padding: 10px; /* 四周留白 */
+            padding: 10px; 
             box-sizing: border-box;
         }
 
-        /* 書本陰影 */
         #book { 
             box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
         }
@@ -41,34 +42,37 @@
             height: 100%; 
         }
         
-        /* 圖片保持比例，不變形 */
         .page img { 
             width: 100%; 
             height: 100%; 
             object-fit: contain; 
         }
 
-        /* --- 2. 新增：底部控制列樣式 --- */
+        /* --- 2. 修改：加高底部控制列，並避開手機 Home Bar --- */
         .controls {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 60px;
+            height: 80px; /* 加高控制列高度 */
             background-color: #fff;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: center; /* 垂直置中 */
             gap: 15px;
             z-index: 100;
+            /* iPhone X+ 底部安全區域設定 */
+            padding-bottom: env(safe-area-inset-bottom); 
+            padding-bottom: 20px; /* 額外再多留一點空間 */
+            box-sizing: border-box; /* 確保 padding 不會撐爆高度 */
         }
 
         .btn {
             background-color: #333;
             color: white;
             border: none;
-            padding: 8px 15px;
+            padding: 10px 18px; /* 按鈕稍微加大一點比較好按 */
             border-radius: 5px;
             font-size: 14px;
             cursor: pointer;
@@ -82,13 +86,13 @@
             font-weight: bold;
         }
 
-        /* 跳轉輸入框 */
         .jump-input {
             width: 40px;
-            padding: 5px;
+            padding: 8px;
             text-align: center;
             border: 1px solid #ccc;
             border-radius: 4px;
+            font-size: 16px; /* 防止 iOS 輸入時自動放大 */
         }
     </style>
 </head>
@@ -96,10 +100,9 @@
 
 <div class="container">
     <div id="book">
-        <div class="page"><img src="0.jpg"></div>
-        <div class="page"><img src="1.jpg"></div>
-        <div class="page"><img src="2.jpg"></div>
-        </div>
+        <div class="page"><img src="0.JPG"></div>
+        <div class="page"><img src="1.JPG"></div>
+    </div>
 </div>
 
 <div class="controls">
@@ -124,9 +127,9 @@
         const pageFlip = new St.PageFlip(bookElement, {
             width: 1080, 
             height: 1920,
-            size: "stretch",     // 拉伸模式
+            size: "stretch",
             minWidth: 315,
-            maxWidth: 1000,      // 限制最大寬度，避免電腦版太大
+            maxWidth: 1000,
             minHeight: 400,
             maxHeight: 1920,
             maxShadowOpacity: 0.5,
@@ -134,22 +137,16 @@
             mobileScrollSupport: true
         });
 
-        // 1. 載入圖片 (這裡會自動抓取代碼中的 .page 元素)
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
 
-        // 2. 初始化總頁數顯示
-        // PageFlip 需要一點時間載入，我們設個延遲或在 'init' 後抓取
         setTimeout(() => {
             document.getElementById("totalPages").innerText = pageFlip.getPageCount();
         }, 500);
 
-        // 3. 監聽「翻頁事件」，更新頁碼數字
         pageFlip.on('flip', (e) => {
-            // e.data 是目前的頁碼索引 (0開始)，所以要 +1
             document.getElementById("currentPage").innerText = e.data + 1;
         });
 
-        // 4. 按鈕功能綁定
         document.getElementById("prevBtn").addEventListener('click', () => {
             pageFlip.flipPrev();
         });
@@ -158,20 +155,16 @@
             pageFlip.flipNext();
         });
 
-        // 5. 跳轉功能綁定
         document.getElementById("goBtn").addEventListener('click', () => {
             const inputVal = document.getElementById("jumpInput").value;
             const pageNum = parseInt(inputVal);
-            
-            // 檢查輸入是否合法 (1 ~ 總頁數)
             if (pageNum >= 1 && pageNum <= pageFlip.getPageCount()) {
-                pageFlip.flip(pageNum - 1); // 程式碼索引是從 0 開始，所以要 -1
+                pageFlip.flip(pageNum - 1); 
             } else {
                 alert("頁數超出範圍！");
             }
         });
         
-        // 自動調整視窗大小
         window.addEventListener('resize', () => {
             pageFlip.updateFromHtml(document.querySelectorAll(".page"));
         });
