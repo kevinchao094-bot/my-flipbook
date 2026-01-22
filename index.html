@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub 電子書閱讀器</title>
+    <title>精拓生技 電子書閱讀器</title>
     <style>
         :root {
-            --bg-color: #444;
+            --bg-color: #333;
         }
 
         * { box-sizing: border-box; }
@@ -15,112 +15,107 @@
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
-            /* 使用 dvh (Dynamic Viewport Height) 解決手機網址列遮擋問題 */
-            height: 100dvh; 
+            height: 100dvh; /* 使用 dvh 避免手機網址列遮擋 */
             width: 100vw;
-            overflow: hidden; /* 禁止整個頁面滾動 */
+            overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            /* 禁止瀏覽器預設的滑動行為（如上一頁），讓 JS 專心處理翻頁 */
+            /* 關鍵：完全禁止瀏覽器的預設手勢，交給 JS 處理 */
             touch-action: none; 
         }
 
-        /* 主容器：採用垂直 Flex 佈局 */
         .viewport-container {
             width: 100%;
             height: 100%;
             display: flex;
-            flex-direction: column; /* 上面是書，下面是按鈕 */
-            justify-content: space-between; 
+            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
         }
 
-        /* 1. 書本舞台區：佔據所有剩餘空間，並負責置中 */
+        /* --- 書本舞台區 --- */
         .stage-area {
-            flex: 1; /* 自動填滿剩餘高度 */
+            flex: 1;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
-            perspective: 1500px; /* 3D 視角 */
-            padding: 20px; /* 給書本一點呼吸空間 */
+            overflow: hidden; /* 確保放大的圖片不會超出舞台 */
+            perspective: 1500px;
+            padding: 10px;
+            position: relative;
         }
 
-        /* 2. 書本本體：鎖定 9:16 比例 */
         .book {
             position: relative;
             transform-style: preserve-3d;
-            
-            /* --- 核心修正：比例鎖定 --- */
-            /* 設定直式 16:9 (即 9:16) */
+            /* 鎖定 9:16 比例 */
             aspect-ratio: 9 / 16;
-            
-            /* 讓書本盡可能大，但受限於舞台的高度或寬度 */
-            height: 100%; 
-            max-height: 100%; /* 不超過舞台高度 */
-            width: auto;      /* 寬度自動計算 */
-            
-            /* 如果螢幕太寬（電腦），限制一下最大寬度，避免過大 */
-            max-width: 100%; 
-
-            border-radius: 4px;
+            height: 100%;
+            max-height: 100%;
+            width: auto;
+            max-width: 100%;
             transition: transform 0.4s ease;
         }
 
-        /* 頁面樣式 */
         .page {
             width: 100%;
             height: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            background-color: transparent; /* 透明背景 */
+            background-color: transparent;
             border: none;
             
             transform-origin: left center;
             transform-style: preserve-3d;
             transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
             
-            /* 確保圓角裁切 */
-            overflow: hidden; 
             border-radius: 4px;
-
             display: flex;
             justify-content: center;
             align-items: center;
-            backface-visibility: hidden; 
+            backface-visibility: hidden;
+            overflow: hidden;
+        }
+
+        /* 圖片容器：用於處理縮放動畫 */
+        .img-wrapper {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .page img {
             width: 100%;
             height: 100%;
-            /* 使用 contain 確保整張圖完整顯示且不變形 (可能會留白邊) */
-            /* 如果您這張圖本身就是設計好的 9:16，用 cover 也可以 */
-            object-fit: contain; 
-            pointer-events: none; /* 防止圖片被選取，干擾滑動 */
+            object-fit: contain; /* 保持比例 */
+            /* 縮放動畫 */
+            transition: transform 0.2s ease-out; 
+            transform-origin: center center;
+            will-change: transform; /* 效能優化 */
         }
 
         .page.flipped {
             transform: rotateY(-180deg);
         }
 
-        /* 3. 控制區：固定高度，確保不跑版 */
+        /* --- 控制區 --- */
         .controls {
-            flex-shrink: 0; /* 禁止被壓縮 */
-            height: 80px;   /* 給予足夠的觸控高度 */
+            flex-shrink: 0;
+            height: 80px;
             width: 100%;
-            
             display: flex;
             justify-content: center;
-            align-items: center; /* 垂直置中 */
+            align-items: center;
             gap: 15px;
-            
-            background: rgba(0, 0, 0, 0.2); /* 稍微深一點的背景區隔 */
-            padding-bottom: env(safe-area-inset-bottom); /* 適配 iPhone 底部橫條 */
+            background: rgba(0, 0, 0, 0.3);
+            padding-bottom: env(safe-area-inset-bottom);
             z-index: 100;
         }
 
-        /* 控制列內的小容器 */
         .control-panel {
             background: rgba(255, 255, 255, 0.95);
             padding: 8px 20px;
@@ -128,7 +123,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
         button {
@@ -148,7 +143,6 @@
         .page-info {
             font-size: 14px;
             color: #333;
-            font-variant-numeric: tabular-nums;
             min-width: 45px;
             text-align: center;
             font-weight: bold;
@@ -160,7 +154,6 @@
             gap: 5px;
             border-left: 1px solid #ccc;
             padding-left: 10px;
-            margin-left: 5px;
         }
 
         input[type="number"] {
@@ -169,19 +162,26 @@
             border: 1px solid #ddd;
             border-radius: 6px;
             text-align: center;
-            font-size: 14px;
+        }
+        
+        /* 縮放提示按鈕 (選用) */
+        .zoom-hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0.7;
+            z-index: 50;
         }
 
-        /* 手機適配微調 */
         @media (max-width: 400px) {
-            .control-panel {
-                padding: 8px 10px;
-                gap: 5px;
-                width: 95%;
-                justify-content: space-between;
-            }
+            .control-panel { padding: 8px 10px; gap: 5px; width: 95%; justify-content: space-between; }
             button { padding: 8px 10px; font-size: 13px; }
-            .jump-box input { width: 35px; }
         }
     </style>
 </head>
@@ -189,23 +189,28 @@
 
     <div class="viewport-container" id="touch-zone">
         <div class="stage-area">
+            <div class="zoom-hint">雙擊圖片縮放</div>
             <div class="book" id="book">
                 <div class="page" style="z-index: 2;" id="page-0">
-                    <img src="0.JPG" alt="Page 0">
+                    <div class="img-wrapper">
+                        <img src="0.JPG" alt="Page 0" id="img-0">
+                    </div>
                 </div>
                 <div class="page" style="z-index: 1;" id="page-1">
-                    <img src="1.JPG" alt="Page 1">
+                    <div class="img-wrapper">
+                        <img src="1.JPG" alt="Page 1" id="img-1">
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="controls">
             <div class="control-panel">
-                <button id="btn-prev" onclick="prevPage()">上一頁</button>
+                <button id="btn-prev" onclick="handleBtnPrev()">上一頁</button>
                 <span class="page-info">
                     <span id="current-page">1</span> / <span id="total-pages">2</span>
                 </span>
-                <button id="btn-next" onclick="nextPage()">下一頁</button>
+                <button id="btn-next" onclick="handleBtnNext()">下一頁</button>
                 
                 <div class="jump-box">
                     <input type="number" id="jump-input" min="1" placeholder="頁">
@@ -216,11 +221,24 @@
     </div>
 
     <script>
-        // 設定圖片總數
+        // 設定
         const totalImages = 2; 
         let currentPageIndex = 0; 
 
-        // DOM 元素
+        // 縮放相關變數
+        let isZoomed = false;
+        let scale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        
+        // 觸控變數
+        let lastTapTime = 0;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        // DOM
         const pageCountSpan = document.getElementById('total-pages');
         const currentSpan = document.getElementById('current-page');
         const btnPrev = document.getElementById('btn-prev');
@@ -232,54 +250,123 @@
             pageCountSpan.innerText = totalImages;
             updateZIndexes();
             updateControls();
+            setupTouchEvents();
+        }
 
-            // --- 修復滑動偵測 ---
-            let touchStartX = 0;
-            let touchEndX = 0;
-            
-            // 監聽整個容器，確保手指點在哪都能感應
+        // --- 核心：觸控事件處理 ---
+        function setupTouchEvents() {
             touchZone.addEventListener('touchstart', e => {
-                touchStartX = e.changedTouches[0].screenX;
+                const touch = e.touches[0];
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTapTime;
+
+                // 紀錄初始位置
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+
+                // 偵測雙擊 (Double Tap)
+                if (tapLength < 300 && tapLength > 0) {
+                    toggleZoom();
+                    e.preventDefault(); // 防止瀏覽器預設縮放
+                }
+                lastTapTime = currentTime;
+
             }, { passive: false });
-            
-            // 重要：防止滑動時觸發瀏覽器的預設行為（如滾動頁面），讓滑動更靈敏
+
             touchZone.addEventListener('touchmove', e => {
-                // 如果是水平滑動，阻止預設行為
-                e.preventDefault(); 
+                e.preventDefault(); // 阻止瀏覽器滾動
+                
+                if (e.touches.length > 1) return; // 暫不處理多指縮放，避免複雜
+
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - lastTouchX;
+                const deltaY = touch.clientY - lastTouchY;
+
+                if (isZoomed) {
+                    // 1. 如果已放大 -> 執行拖曳 (Pan)
+                    translateX += deltaX;
+                    translateY += deltaY;
+                    applyTransform();
+                } else {
+                    // 2. 如果未放大 -> 等待手指放開後判斷翻頁，這裡不做事
+                }
+
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
             }, { passive: false });
 
             touchZone.addEventListener('touchend', e => {
-                touchEndX = e.changedTouches[0].screenX;
-                handleSwipe();
-            }, { passive: false });
+                if (isZoomed) return; // 放大狀態下，放開手指不翻頁
 
-            function handleSwipe() {
-                const threshold = 40; // 滑動靈敏度
-                if (touchEndX < touchStartX - threshold) {
-                    nextPage(); // 向左滑 -> 下一頁
+                const touchEndX = e.changedTouches[0].clientX;
+                const totalDeltaX = touchEndX - touchStartX;
+                const threshold = 50; // 翻頁靈敏度
+
+                // 判斷滑動翻頁
+                if (Math.abs(totalDeltaX) > threshold) {
+                    if (totalDeltaX < 0) {
+                        nextPage(); // 向左滑
+                    } else {
+                        prevPage(); // 向右滑
+                    }
                 }
-                if (touchEndX > touchStartX + threshold) {
-                    prevPage(); // 向右滑 -> 上一頁
-                }
+            }, { passive: false });
+        }
+
+        // --- 縮放功能 ---
+        function toggleZoom() {
+            const currentImg = document.getElementById(`img-${currentPageIndex}`);
+            
+            if (isZoomed) {
+                // 還原
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                isZoomed = false;
+                // 恢復翻頁按鈕
+                btnPrev.disabled = currentPageIndex === 0;
+                btnNext.disabled = currentPageIndex === totalImages - 1;
+            } else {
+                // 放大
+                scale = 2.5; // 放大 2.5 倍
+                isZoomed = true;
+                // 放大時禁用翻頁按鈕，避免誤觸
+                btnPrev.disabled = true;
+                btnNext.disabled = true;
+            }
+            applyTransform();
+        }
+
+        function applyTransform() {
+            const currentImg = document.getElementById(`img-${currentPageIndex}`);
+            if (currentImg) {
+                // 使用 CSS transform 移動與縮放
+                currentImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
             }
         }
 
-        function updateZIndexes() {
-            pages.forEach((page, index) => {
-                if (index > currentPageIndex) {
-                    page.style.zIndex = totalImages - index;
-                    page.style.display = 'flex';
-                } else if (index === currentPageIndex) {
-                      page.style.zIndex = totalImages + 1;
-                      page.style.display = 'flex';
-                } else {
-                    page.style.zIndex = index;
-                }
-            });
+        function resetZoomState() {
+            // 換頁時，強制重置縮放狀態
+            if (isZoomed) {
+                const prevImg = document.getElementById(`img-${currentPageIndex}`); // 舊頁面
+                if(prevImg) prevImg.style.transform = 'translate(0,0) scale(1)';
+                
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                isZoomed = false;
+            }
         }
 
+        // --- 翻頁邏輯 ---
         function nextPage() {
+            if (isZoomed) return; // 放大時禁止翻頁
             if (currentPageIndex >= totalImages - 1) return;
+
+            resetZoomState(); // 確保下一頁是從原始大小開始
+            
             const currentEl = document.getElementById(`page-${currentPageIndex}`);
             currentEl.classList.add('flipped');
             currentPageIndex++;
@@ -287,11 +374,26 @@
         }
 
         function prevPage() {
+            if (isZoomed) return;
             if (currentPageIndex <= 0) return;
+
+            resetZoomState();
+
             currentPageIndex--;
             const prevEl = document.getElementById(`page-${currentPageIndex}`);
             prevEl.classList.remove('flipped');
             updateUI();
+        }
+
+        // 按鈕觸發的翻頁（需判斷是否在放大模式）
+        function handleBtnNext() {
+            if (isZoomed) toggleZoom(); // 如果在放大模式點下一頁，先縮小
+            else nextPage();
+        }
+
+        function handleBtnPrev() {
+            if (isZoomed) toggleZoom();
+            else prevPage();
         }
 
         function jumpToPage() {
@@ -302,6 +404,8 @@
                 alert('請輸入有效的頁碼');
                 return;
             }
+
+            resetZoomState(); // 跳轉前重置
 
             let targetIndex = targetPage - 1;
 
@@ -319,6 +423,20 @@
             currentPageIndex = targetIndex;
             updateUI();
             input.value = '';
+        }
+
+        function updateZIndexes() {
+            pages.forEach((page, index) => {
+                if (index > currentPageIndex) {
+                    page.style.zIndex = totalImages - index;
+                    page.style.display = 'flex';
+                } else if (index === currentPageIndex) {
+                      page.style.zIndex = totalImages + 1;
+                      page.style.display = 'flex';
+                } else {
+                    page.style.zIndex = index;
+                }
+            });
         }
 
         function updateUI() {
