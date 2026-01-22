@@ -5,70 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
     <style>
-        /* 1. 全局設定 */
+        /* 1. 基礎設定 */
         * { box-sizing: border-box; }
-
         body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #333; 
-            /* 使用 dvh 確保填滿手機可視範圍，扣除瀏覽器網址列 */
-            height: 100dvh; 
-            width: 100%;
-            
-            /* 關鍵：使用 Flex Column 排版 */
+            margin: 0; padding: 0; 
+            background-color: #333; /* 深灰背景凸顯內容 */
+            height: 100vh; height: 100dvh; 
+            width: 100vw;
             display: flex;
             flex-direction: column;
             overflow: hidden; 
         }
 
-        /* 2. 上方舞台 (電子書區域) 
-           flex: 1 代表「佔用所有剩餘空間」
-           這樣不管控制列多高，剩下的空間都是書的
-        */
+        /* 2. 舞台區域：這是書本可以活動的最大範圍 */
         .stage-container {
-            flex: 1; 
+            flex: 1; /* 自動佔滿剩餘高度 */
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
             position: relative;
-            
-            /* 這是唯一的留白，只留一點點縫隙避免貼邊 */
+            /* 留一點點呼吸空間，避免視覺太壓迫 */
             padding: 10px; 
-            padding-top: max(10px, env(safe-area-inset-top)); /* 避開瀏海 */
         }
 
-        /* 3. 書本本體 */
+        /* 3. 書本本體：這裡不再用 CSS 鎖死，改由 JS 控制 */
         #book { 
-            /* 讓書本撐滿舞台，但保持比例 */
-            height: 100% !important; 
-            width: auto !important;
-            
-            /* 這裡設定您的書本比例，確保形狀正確
-               如果您是 A4 比例，請改為 210/297 
-               如果是手機滿版比例，維持 1080/1920 */
-            aspect-ratio: 1080 / 1920; 
-            
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            /* 預設隱藏，等計算好大小再顯示，避免閃爍 */
+            visibility: hidden; 
         }
 
         .page { 
             background-color: #fff;
-            width: 100%; 
-            height: 100%; 
+            width: 100%; height: 100%; 
             overflow: hidden;
         }
         
         .page img { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: contain; /* 圖片完整顯示 */
+            width: 100%; height: 100%; 
+            object-fit: contain; /* 圖片保證完整顯示 */
+            display: block;
         }
 
-        /* 4. 底部控制列 (固定高度) */
+        /* 4. 底部控制列 */
         .controls {
-            /* 高度設定為 auto，由 padding 撐開 */
             height: auto;
             min-height: 60px;
             background-color: #1a1a1a;
@@ -76,47 +58,33 @@
             justify-content: center;
             align-items: center;
             gap: 15px;
-            
-            /* 內距設定 */
             padding-top: 15px;
-            /* 關鍵：底部避開 iPhone Home Bar，再多加 15px 緩衝 */
             padding-bottom: calc(env(safe-area-inset-bottom) + 15px);
-            
             z-index: 99;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
         }
 
         .btn {
-            background-color: #444;
-            color: white;
+            background-color: #444; color: white;
             border: 1px solid #555;
             padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 14px;
-            cursor: pointer;
-            white-space: nowrap; /* 防止按鈕文字換行 */
+            border-radius: 5px; font-size: 14px;
+            cursor: pointer; white-space: nowrap;
         }
         .btn:active { background-color: #666; }
-
-        .page-info { 
-            color: #fff; 
-            font-size: 14px; 
-            white-space: nowrap;
-        }
-
+        
+        .page-info { color: #fff; font-size: 14px; white-space: nowrap; }
+        
         .jump-input {
-            width: 40px;
-            padding: 5px;
-            text-align: center;
-            background: #eee;
-            border: none;
-            border-radius: 4px;
+            width: 40px; padding: 5px;
+            text-align: center; background: #eee;
+            border: none; border-radius: 4px;
         }
     </style>
 </head>
 <body>
 
-<div class="stage-container">
+<div class="stage-container" id="stage">
     <div id="book">
         <div class="page"><img src="0.JPG"></div>
         <div class="page"><img src="1.JPG"></div>
@@ -136,48 +104,77 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const bookElement = document.getElementById("book");
+        const stage = document.getElementById("stage");
         
+        // --- 核心邏輯：計算最大尺寸 ---
+        function resizeBook() {
+            // 1. 取得舞台目前的可用寬高
+            const stageW = stage.clientWidth - 20; // 扣除 padding
+            const stageH = stage.clientHeight - 20;
+            
+            // 2. 設定目標比例 (1080 x 1920 = 0.5625)
+            const targetRatio = 1080 / 1920;
+            const stageRatio = stageW / stageH;
+
+            let newW, newH;
+
+            // 3. 判斷：舞台比較寬？還是比較高？
+            if (stageRatio > targetRatio) {
+                // 舞台比較寬 (胖)，高度是限制
+                newH = stageH;
+                newW = stageH * targetRatio;
+            } else {
+                // 舞台比較窄 (瘦)，寬度是限制
+                newW = stageW;
+                newH = stageW / targetRatio;
+            }
+
+            // 4. 將算出來的精準像素套用到書本上
+            bookElement.style.width = newW + 'px';
+            bookElement.style.height = newH + 'px';
+            bookElement.style.visibility = 'visible'; // 顯示書本
+        }
+
+        // 初始化先算一次
+        resizeBook();
+
+        // --- 啟動翻頁套件 ---
         const pageFlip = new St.PageFlip(bookElement, {
-            // 這裡的寬高主要是定義「比例」，實際顯示會跟隨 CSS
-            width: 1080, 
+            width: 1080,   // 這裡只是內部解析度設定
             height: 1920,
-            
-            // 關鍵：使用 stretch 模式配合 CSS 的 aspect-ratio
-            size: "stretch",
-            
-            // 讓它盡可能縮小以適應螢幕
+            size: "stretch", // 讓套件填滿我們剛才用 JS 算出來的 div
             minWidth: 100,
-            maxWidth: 2000,
+            maxWidth: 5000,
             minHeight: 100,
-            maxHeight: 2000,
-            
+            maxHeight: 5000,
             maxShadowOpacity: 0.5,
             showCover: true,
-            mobileScrollSupport: true,
-            usePortrait: true // 強制單頁
+            mobileScrollSupport: true
         });
 
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
 
+        // 更新總頁數
         setTimeout(() => {
             const count = pageFlip.getPageCount();
             document.getElementById("totalPages").innerText = count > 0 ? count : "-";
         }, 1000);
 
-        pageFlip.on('flip', (e) => {
-            document.getElementById("currentPage").innerText = e.data + 1;
-        });
+        // 翻頁監聽
+        pageFlip.on('flip', (e) => document.getElementById("currentPage").innerText = e.data + 1);
 
+        // 按鈕功能
         document.getElementById("prevBtn").addEventListener('click', () => pageFlip.flipPrev());
         document.getElementById("nextBtn").addEventListener('click', () => pageFlip.flipNext());
-        
         document.getElementById("goBtn").addEventListener('click', () => {
             const val = parseInt(document.getElementById("jumpInput").value);
             if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
         });
 
+        // --- 監聽螢幕旋轉/縮放 ---
         window.addEventListener('resize', () => {
-            pageFlip.updateFromHtml(document.querySelectorAll(".page"));
+            resizeBook(); // 1. 先重新計算外框大小
+            pageFlip.updateFromHtml(document.querySelectorAll(".page")); // 2. 再通知套件更新
         });
     });
 </script>
