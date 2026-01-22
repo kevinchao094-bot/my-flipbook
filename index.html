@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>精拓生技 - 電子手冊</title>
+    <title>精拓生技 - 電子手冊 (單頁版)</title>
     <style>
         /* 1. 基礎設定 */
         * { box-sizing: border-box; }
         body { 
             margin: 0; padding: 0; 
-            background-color: #333; /* 深灰背景凸顯內容 */
+            background-color: #333; 
             height: 100vh; height: 100dvh; 
             width: 100vw;
             display: flex;
@@ -17,23 +17,23 @@
             overflow: hidden; 
         }
 
-        /* 2. 舞台區域：這是書本可以活動的最大範圍 */
+        /* 2. 舞台區域 */
         .stage-container {
-            flex: 1; /* 自動佔滿剩餘高度 */
+            flex: 1; 
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
             overflow: hidden;
             position: relative;
-            /* 留一點點呼吸空間，避免視覺太壓迫 */
-            padding: 10px; 
+            
+            /* --- 修改點 A：上下預留 25px --- */
+            padding: 25px 0; 
         }
 
-        /* 3. 書本本體：這裡不再用 CSS 鎖死，改由 JS 控制 */
+        /* 3. 書本本體 */
         #book { 
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            /* 預設隱藏，等計算好大小再顯示，避免閃爍 */
             visibility: hidden; 
         }
 
@@ -45,7 +45,7 @@
         
         .page img { 
             width: 100%; height: 100%; 
-            object-fit: contain; /* 圖片保證完整顯示 */
+            object-fit: contain; 
             display: block;
         }
 
@@ -88,7 +88,7 @@
     <div id="book">
         <div class="page"><img src="0.JPG"></div>
         <div class="page"><img src="1.JPG"></div>
-    </div>
+        </div>
 </div>
 
 <div class="controls">
@@ -106,50 +106,57 @@
         const bookElement = document.getElementById("book");
         const stage = document.getElementById("stage");
         
-        // --- 核心邏輯：計算最大尺寸 ---
+        // --- 核心邏輯：計算最大尺寸 (自適應) ---
         function resizeBook() {
             // 1. 取得舞台目前的可用寬高
-            const stageW = stage.clientWidth - 20; // 扣除 padding
-            const stageH = stage.clientHeight - 20;
+            const stageW = stage.clientWidth;
             
-            // 2. 設定目標比例 (1080 x 1920 = 0.5625)
+            // --- 修改點 B：計算高度時，扣除上下的 padding (25px + 25px = 50px) ---
+            // 這樣才能保證書本不會蓋到預留空間
+            const stageH = stage.clientHeight - 50; 
+            
+            // 2. 設定目標比例 (單頁比例 1080 x 1920)
             const targetRatio = 1080 / 1920;
             const stageRatio = stageW / stageH;
 
             let newW, newH;
 
-            // 3. 判斷：舞台比較寬？還是比較高？
+            // 3. 判斷並計算最大適配尺寸 (Contain 模式)
             if (stageRatio > targetRatio) {
-                // 舞台比較寬 (胖)，高度是限制
+                // 舞台比較寬，高度是瓶頸
                 newH = stageH;
                 newW = stageH * targetRatio;
             } else {
-                // 舞台比較窄 (瘦)，寬度是限制
+                // 舞台比較窄，寬度是瓶頸
                 newW = stageW;
                 newH = stageW / targetRatio;
             }
 
-            // 4. 將算出來的精準像素套用到書本上
+            // 4. 套用尺寸
             bookElement.style.width = newW + 'px';
             bookElement.style.height = newH + 'px';
-            bookElement.style.visibility = 'visible'; // 顯示書本
+            bookElement.style.visibility = 'visible';
         }
 
-        // 初始化先算一次
+        // 初始化計算
         resizeBook();
 
         // --- 啟動翻頁套件 ---
         const pageFlip = new St.PageFlip(bookElement, {
-            width: 1080,   // 這裡只是內部解析度設定
+            width: 1080,   
             height: 1920,
-            size: "stretch", // 讓套件填滿我們剛才用 JS 算出來的 div
+            size: "stretch", 
             minWidth: 100,
             maxWidth: 5000,
             minHeight: 100,
             maxHeight: 5000,
             maxShadowOpacity: 0.5,
             showCover: true,
-            mobileScrollSupport: true
+            mobileScrollSupport: true,
+            
+            // --- 修改點 C：強制使用單頁模式 ---
+            // usePortrait: true 代表無論螢幕多寬，都像手機直式一樣只顯示一頁
+            usePortrait: true 
         });
 
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
@@ -158,7 +165,7 @@
         setTimeout(() => {
             const count = pageFlip.getPageCount();
             document.getElementById("totalPages").innerText = count > 0 ? count : "-";
-        }, 1000);
+        }, 500);
 
         // 翻頁監聽
         pageFlip.on('flip', (e) => document.getElementById("currentPage").innerText = e.data + 1);
@@ -171,10 +178,11 @@
             if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
         });
 
-        // --- 監聽螢幕旋轉/縮放 ---
+        // --- 監聽螢幕變化 ---
         window.addEventListener('resize', () => {
-            resizeBook(); // 1. 先重新計算外框大小
-            pageFlip.updateFromHtml(document.querySelectorAll(".page")); // 2. 再通知套件更新
+            resizeBook(); 
+            // 這裡不需要 pageFlip.updateFromHtml，因為我們只是改了容器大小，
+            // CSS size: stretch 配合 resizeBook 改動 div 尺寸會自動處理
         });
     });
 </script>
