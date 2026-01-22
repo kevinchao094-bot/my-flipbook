@@ -3,236 +3,313 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub 電子書 - PageFlip版</title>
-    <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.js"></script>
+    <title>GitHub 電子書閱讀器</title>
     <style>
+        :root {
+            --book-width: 90vw;  /* 手機上佔據 90% 寬度 */
+            --book-height: 160vw; /* 依據比例設定高度，約 9:16 */
+            --max-width: 500px;   /* 電腦版最大寬度 */
+            --max-height: 666px;
+            --bg-color: #444;
+            --paper-color: #fff;
+        }
+
         * { box-sizing: border-box; }
 
         body {
             margin: 0;
             padding: 0;
-            background-color: #444; /* 深灰色背景，突顯電子書邊緣 */
-            height: 100vh;
+            background-color: var(--bg-color);
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            min-height: 100vh;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overflow: hidden;
+            overflow: hidden; /* 防止翻頁時出現滾動條 */
         }
 
-        /* 主容器：上下留白 25px，中間自適應 */
-        .stage {
+        /* 核心佈局：上下留白 25px */
+        .viewport-container {
             width: 100%;
-            flex-grow: 1; /* 佔據剩餘空間 */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 25px 0; 
+        }
+
+        /* 電子書容器 */
+        .book-stage {
+            width: var(--book-width);
+            height: var(--book-height);
+            max-width: var(--max-width);
+            max-height: var(--max-height);
+            position: relative;
+            perspective: 1500px; /* 3D 景深 */
+        }
+
+        .book {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            border-radius: 10px;
+            /* 浮起來的陰影效果 */
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.4s ease;
+        }
+
+        /* 頁面樣式 */
+        .page {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: var(--paper-color);
+            transform-origin: left center; /* 從左側翻頁 */
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1); /* 模擬紙張物理曲線 */
+            border-radius: 4px;
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 25px 0 10px 0; /* 上方 25px，下方留一點給控制列 */
-            position: relative;
-        }
-
-        /* 書本的外部容器：負責產生「浮起來」的陰影 */
-        .book-wrapper {
-            /* 這裡設定書本的最大顯示比例 */
-            width: 90vw; 
-            height: auto;
-            aspect-ratio: 3/4; /* 固定長寬比，避免變形 */
-            max-width: 500px;  /* 電腦版限制最大寬度 */
-            max-height: 80vh;  /* 限制高度，避免蓋到控制列 */
-            
-            /* 浮起來的關鍵：強烈的陰影 */
-            box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 5px 15px rgba(0,0,0,0.3); 
-            background-color: #fff; /* 書本背景 */
-            border-radius: 5px;     /* 書本圓角 */
-        }
-
-        /* PageFlip 會掛載在這個元素上 */
-        .flip-book {
-            width: 100%;
-            height: 100%;
-            display: none; /* 載入前隱藏，避免閃爍 */
-            background-size: cover;
-        }
-
-        /* 單頁樣式 */
-        .page {
-            background-color: #fff;
-            padding: 0;
-            overflow: hidden;
-            border-right: 1px solid #ddd; /* 頁面右側邊緣線 */
+            /* 頁面邊框，增加層次感 */
+            border: 2px solid rgba(0,0,0,0.05);
+            /* 隱藏背面 */
+            backface-visibility: hidden; 
+            z-index: 1;
         }
 
         .page img {
             width: 100%;
             height: 100%;
-            object-fit: contain; /* 確保圖片完整顯示不變形 */
+            object-fit: contain; /* 確保圖片完整顯示 */
+            background: #fff;
         }
 
-        /* -------- 控制欄 -------- */
-        .controls-container {
-            height: 60px; /* 固定高度 */
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start; /* 靠上對齊 */
-            padding-bottom: 25px; /* 下方強制留白 */
+        /* 翻頁邏輯：翻過去的頁面 */
+        .page.flipped {
+            transform: rotateY(-180deg);
+        }
+
+        /* 層級控制：確保當前頁在最上面 */
+        .page.active {
             z-index: 10;
         }
 
+        /* 控制欄 */
         .controls {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 8px 20px;
-            border-radius: 30px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            margin-top: 20px;
             display: flex;
-            gap: 15px;
+            gap: 10px;
             align-items: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            z-index: 100;
         }
 
         button {
             border: none;
-            background: #222;
+            background: #333;
             color: #fff;
-            padding: 8px 15px;
+            padding: 8px 16px;
             border-radius: 20px;
             cursor: pointer;
             font-size: 14px;
             transition: background 0.2s;
-            min-width: 60px;
         }
 
-        button:active { background: #000; }
-        button:disabled { background: #888; cursor: not-allowed; opacity: 0.6; }
+        button:active { background: #555; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
 
         .page-info {
+            font-size: 14px;
+            color: #555;
             font-variant-numeric: tabular-nums;
-            font-weight: bold;
-            color: #333;
         }
 
+        /* 跳轉輸入框 */
         .jump-box {
             display: flex;
             align-items: center;
             gap: 5px;
-            border-left: 1px solid #ccc;
-            padding-left: 10px;
         }
 
-        .jump-box input {
-            width: 45px;
-            padding: 5px;
-            border: 1px solid #aaa;
-            border-radius: 5px;
+        input[type="number"] {
+            width: 50px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
             text-align: center;
+            font-size: 14px;
         }
 
-        .jump-box button {
-            min-width: auto;
-            background: #555;
+        /* 手機適配微調 */
+        @media (max-width: 600px) {
+            .controls {
+                width: 90%;
+                justify-content: space-between;
+                padding: 10px 15px;
+            }
+            .jump-box input { width: 40px; }
+            .jump-box button { padding: 8px 12px; }
         }
     </style>
 </head>
 <body>
 
-    <div class="stage">
-        <div class="book-wrapper">
-            <div id="book" class="flip-book">
-                <div class="page" data-density="hard">
-                    <img src="0.JPG" alt="Cover">
+    <div class="viewport-container">
+        <div class="book-stage">
+            <div class="book" id="book">
+                <div class="page" style="z-index: 2;" id="page-0">
+                    <img src="0.JPG" alt="Page 0">
                 </div>
-                <div class="page" data-density="soft">
+                <div class="page" style="z-index: 1;" id="page-1">
                     <img src="1.JPG" alt="Page 1">
                 </div>
-                </div>
+            </div>
         </div>
-    </div>
 
-    <div class="controls-container">
         <div class="controls">
-            <button id="btn-prev">上一頁</button>
+            <button id="btn-prev" onclick="prevPage()">上一頁</button>
             <span class="page-info">
-                <span id="current-page">1</span> / <span id="total-pages">--</span>
+                <span id="current-page">1</span> / <span id="total-pages">2</span>
             </span>
-            <button id="btn-next">下一頁</button>
+            <button id="btn-next" onclick="nextPage()">下一頁</button>
             
             <div class="jump-box">
                 <input type="number" id="jump-input" min="1" placeholder="頁">
-                <button id="btn-jump">GO</button>
+                <button onclick="jumpToPage()">GO</button>
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const pageFlip = new St.PageFlip(document.getElementById('book'), {
-                width: 600, // 基準寬度 (解析度)
-                height: 800, // 基準高度 (解析度)
-                size: 'stretch', // 自動延展填滿父容器
-                minWidth: 300,
-                maxWidth: 1000,
-                minHeight: 400,
-                maxHeight: 1200,
-                maxShadowOpacity: 0.5, // 陰影強度
-                showCover: true, // 啟用封面模式
-                mobileScrollSupport: false, // 禁止手機滾動干擾
-                usePortrait: true, // 強制單頁模式 (適合手機)
-                startPage: 0
+        // 設定圖片總數 (您可以根據需要修改這個數字)
+        const totalImages = 2; 
+        let currentPageIndex = 0; // 0-based index (0 代表第一頁)
+
+        const book = document.getElementById('book');
+        const pageCountSpan = document.getElementById('total-pages');
+        const currentSpan = document.getElementById('current-page');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const pages = document.querySelectorAll('.page');
+
+        // 初始化
+        function init() {
+            pageCountSpan.innerText = totalImages;
+            updateZIndexes();
+            updateControls();
+
+            // 支援觸控滑動翻頁 (簡易版)
+            let touchStartX = 0;
+            let touchEndX = 0;
+            
+            book.addEventListener('touchstart', e => {
+                touchStartX = e.changedTouches[0].screenX;
+            });
+            
+            book.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
             });
 
-            // 取得頁面元素
-            const pages = document.querySelectorAll('.page');
-            const totalPages = pages.length;
+            function handleSwipe() {
+                if (touchEndX < touchStartX - 50) nextPage(); // 向左滑 (下一頁)
+                if (touchEndX > touchStartX + 50) prevPage(); // 向右滑 (上一頁)
+            }
+        }
 
-            // 載入頁面
-            pageFlip.loadFromHTML(pages);
-
-            // UI 元素
-            const elCurrent = document.getElementById('current-page');
-            const elTotal = document.getElementById('total-pages');
-            const btnPrev = document.getElementById('btn-prev');
-            const btnNext = document.getElementById('btn-next');
-            const btnJump = document.getElementById('btn-jump');
-            const inputJump = document.getElementById('jump-input');
-
-            elTotal.innerText = totalPages;
-
-            // 更新按鈕狀態
-            const updateUI = () => {
-                // PageFlip 的 getCurrentPageIndex() 是從 0 開始
-                // 但為了讓使用者好理解，我們顯示 +1
-                const current = pageFlip.getCurrentPageIndex() + 1;
-                elCurrent.innerText = current;
-
-                btnPrev.disabled = current === 1;
-                btnNext.disabled = current === totalPages;
-            };
-
-            // 監聽翻頁事件
-            pageFlip.on('flip', (e) => {
-                updateUI();
-            });
-
-            // 初始化完成後顯示書本 (避免載入時跑版)
-            pageFlip.on('init', () => {
-                document.getElementById('book').style.display = 'block';
-                updateUI();
-            });
-
-            // 按鈕事件綁定
-            btnPrev.addEventListener('click', () => pageFlip.flipPrev());
-            btnNext.addEventListener('click', () => pageFlip.flipNext());
-
-            btnJump.addEventListener('click', () => {
-                const val = parseInt(inputJump.value);
-                if (val >= 1 && val <= totalPages) {
-                    // 轉到指定頁 (API 接受 0-based index，所以要減 1)
-                    pageFlip.turnToPage(val - 1);
-                    inputJump.value = '';
+        // 更新 Z-Index 以確保視覺層級正確
+        function updateZIndexes() {
+            pages.forEach((page, index) => {
+                // 未翻過的頁面，越前面的 index 越大 (在上面)
+                // 已翻過的頁面，不用管 z-index，因為它們被 rotateY(-180deg) 翻過去了
+                if (index > currentPageIndex) {
+                    page.style.zIndex = totalImages - index;
+                    page.style.display = 'flex';
+                } else if (index === currentPageIndex) {
+                     page.style.zIndex = totalImages + 1; // 當前頁最上面
+                     page.style.display = 'flex';
                 } else {
-                    alert('頁碼無效');
+                    page.style.zIndex = index; // 翻過去的在後面
                 }
             });
-        });
+        }
+
+        // 下一頁
+        function nextPage() {
+            if (currentPageIndex >= totalImages - 1) return;
+            
+            const currentEl = document.getElementById(`page-${currentPageIndex}`);
+            currentEl.classList.add('flipped');
+            
+            currentPageIndex++;
+            updateUI();
+        }
+
+        // 上一頁
+        function prevPage() {
+            if (currentPageIndex <= 0) return;
+
+            currentPageIndex--;
+            const prevEl = document.getElementById(`page-${currentPageIndex}`);
+            prevEl.classList.remove('flipped');
+            
+            updateUI();
+        }
+
+        // 跳轉功能
+        function jumpToPage() {
+            const input = document.getElementById('jump-input');
+            let targetPage = parseInt(input.value);
+
+            if (isNaN(targetPage) || targetPage < 1 || targetPage > totalImages) {
+                alert('請輸入有效的頁碼');
+                return;
+            }
+
+            // 轉換為 0-based index
+            let targetIndex = targetPage - 1;
+
+            // 如果目標比當前大，往後翻
+            if (targetIndex > currentPageIndex) {
+                for (let i = currentPageIndex; i < targetIndex; i++) {
+                    document.getElementById(`page-${i}`).classList.add('flipped');
+                }
+            } 
+            // 如果目標比當前小，往回翻
+            else if (targetIndex < currentPageIndex) {
+                for (let i = currentPageIndex - 1; i >= targetIndex; i--) {
+                    document.getElementById(`page-${i}`).classList.remove('flipped');
+                }
+            }
+
+            currentPageIndex = targetIndex;
+            updateUI();
+            input.value = ''; // 清空輸入
+        }
+
+        // 更新介面與按鈕狀態
+        function updateUI() {
+            currentSpan.innerText = currentPageIndex + 1;
+            btnPrev.disabled = currentPageIndex === 0;
+            btnNext.disabled = currentPageIndex === totalImages - 1;
+            
+            // 為了效能，可以稍後更新 Z-Index，但 CSS 3D 主要靠 transform
+            // 這裡簡單處理
+            updateZIndexes();
+        }
+
+        // 啟動
+        init();
     </script>
 </body>
 </html>
