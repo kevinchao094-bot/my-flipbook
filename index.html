@@ -6,26 +6,7 @@
     <title>GitHub 電子書閱讀器</title>
     <style>
         :root {
-            /* --- 修改點 1：調整尺寸策略 --- */
-            /* 不再使用固定的寬高比例，而是根據螢幕高度動態調整 */
-            /* 這樣確保在手機上，書本不會大到把按鈕擠出畫面 */
-            --book-height: calc(100vh - 140px); /* 預留 140px 給控制列 */
-            --book-width: calc((100vh - 140px) * 0.65); /* 根據高度自動算出寬度 (約 2:3 比例) */
-            
-            /* 如果螢幕很寬（電腦版），限制最大寬度 */
-            --max-width: 500px;
-            --max-height: 750px; 
-
             --bg-color: #444;
-        }
-
-        /* 手機版適配：如果算出來的寬度超過螢幕寬度，則改以寬度為基準 */
-        @media (max-width: 600px) {
-            :root {
-                 /* 確保書本寬度不超過螢幕的 95% */
-                 --safe-width: 95vw;
-                 /* 比較一下，如果高度算出來的寬度太寬，就用螢幕寬度 */
-            }
         }
 
         * { box-sizing: border-box; }
@@ -34,47 +15,55 @@
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center; /* 垂直置中 */
-            height: 100vh; /* 鎖定為螢幕高度 */
+            /* 使用 dvh (Dynamic Viewport Height) 解決手機網址列遮擋問題 */
+            height: 100dvh; 
+            width: 100vw;
+            overflow: hidden; /* 禁止整個頁面滾動 */
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overflow: hidden; 
+            /* 禁止瀏覽器預設的滑動行為（如上一頁），讓 JS 專心處理翻頁 */
+            touch-action: none; 
         }
 
+        /* 主容器：採用垂直 Flex 佈局 */
         .viewport-container {
             width: 100%;
             height: 100%;
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* 上面是書，下面是按鈕 */
+            justify-content: space-between; 
+            align-items: center;
+        }
+
+        /* 1. 書本舞台區：佔據所有剩餘空間，並負責置中 */
+        .stage-area {
+            flex: 1; /* 自動填滿剩餘高度 */
+            width: 100%;
+            display: flex;
             justify-content: center;
             align-items: center;
-            padding: 10px 0;
+            overflow: hidden;
+            perspective: 1500px; /* 3D 視角 */
+            padding: 20px; /* 給書本一點呼吸空間 */
         }
 
-        /* 電子書容器 */
-        .book-stage {
-            /* 優先使用 CSS 變數，但加上 max-width 限制 */
-            width: var(--book-width);
-            height: var(--book-height);
-            
-            /* 雙重保險：確保在手機上不會寬出螢幕 */
-            max-width: 90vw; 
-            /* 如果寬度被 max-width 限制了，高度也要等比縮小，這裡用 object-fit 的概念處理容器較難，
-               所以我們主要依賴上面的 calc 計算。但在極端細長的手機，可能左右會有空隙，這是正常的。 */
-
-            position: relative;
-            perspective: 1500px; 
-            margin-bottom: 20px; /* 與控制列的距離 */
-        }
-
+        /* 2. 書本本體：鎖定 9:16 比例 */
         .book {
-            width: 100%;
-            height: 100%;
             position: relative;
             transform-style: preserve-3d;
-            border-radius: 4px; /* 稍微縮小圓角 */
+            
+            /* --- 核心修正：比例鎖定 --- */
+            /* 設定直式 16:9 (即 9:16) */
+            aspect-ratio: 9 / 16;
+            
+            /* 讓書本盡可能大，但受限於舞台的高度或寬度 */
+            height: 100%; 
+            max-height: 100%; /* 不超過舞台高度 */
+            width: auto;      /* 寬度自動計算 */
+            
+            /* 如果螢幕太寬（電腦），限制一下最大寬度，避免過大 */
+            max-width: 100%; 
+
+            border-radius: 4px;
             transition: transform 0.4s ease;
         }
 
@@ -85,63 +74,61 @@
             position: absolute;
             top: 0;
             left: 0;
-            
-            /* --- 修改點 2：移除白色背景與邊框 --- */
-            background-color: transparent; /* 改為透明 */
-            border: none; /* 移除邊框 */
+            background-color: transparent; /* 透明背景 */
+            border: none;
             
             transform-origin: left center;
             transform-style: preserve-3d;
             transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
             
-            /* 移除 overflow: hidden 以免切到陰影，但如果圖片要圓角則需加回 */
-            /* 這裡建議保留 hidden 以配合 border-radius */
+            /* 確保圓角裁切 */
             overflow: hidden; 
             border-radius: 4px;
 
             display: flex;
             justify-content: center;
             align-items: center;
-            
             backface-visibility: hidden; 
-            z-index: 1;
         }
 
         .page img {
             width: 100%;
             height: 100%;
-            
-            /* --- 修改點 3：圖片填滿模式 --- */
-            /* object-fit: fill; 會強制拉伸圖片填滿整個框（可能會變形，但沒有白邊） */
-            /* object-fit: cover; 會等比放大填滿（可能會切掉部分邊緣，但沒有白邊且不變形） */
-            /* 既然您的訴求是「只呈現圖片」，通常建議用 fill 讓它完全符合書本形狀 */
-            object-fit: fill; 
-            
-            background: transparent; /* 確保圖片背景也是透明 */
+            /* 使用 contain 確保整張圖完整顯示且不變形 (可能會留白邊) */
+            /* 如果您這張圖本身就是設計好的 9:16，用 cover 也可以 */
+            object-fit: contain; 
+            pointer-events: none; /* 防止圖片被選取，干擾滑動 */
         }
 
         .page.flipped {
             transform: rotateY(-180deg);
         }
 
-        .page.active {
-            z-index: 10;
-        }
-
-        /* 控制欄 */
+        /* 3. 控制區：固定高度，確保不跑版 */
         .controls {
-            /* 固定高度，避免壓縮 */
-            flex-shrink: 0; 
-            height: 60px;
+            flex-shrink: 0; /* 禁止被壓縮 */
+            height: 80px;   /* 給予足夠的觸控高度 */
+            width: 100%;
             
             display: flex;
-            gap: 10px;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 5px 20px;
-            border-radius: 30px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            justify-content: center;
+            align-items: center; /* 垂直置中 */
+            gap: 15px;
+            
+            background: rgba(0, 0, 0, 0.2); /* 稍微深一點的背景區隔 */
+            padding-bottom: env(safe-area-inset-bottom); /* 適配 iPhone 底部橫條 */
             z-index: 100;
+        }
+
+        /* 控制列內的小容器 */
+        .control-panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 20px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
         button {
@@ -152,52 +139,56 @@
             border-radius: 20px;
             cursor: pointer;
             font-size: 14px;
-            transition: background 0.2s;
-            white-space: nowrap; /* 防止按鈕文字換行 */
+            white-space: nowrap;
         }
 
         button:active { background: #555; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
+        button:disabled { background: #ccc; opacity: 0.5; cursor: not-allowed; }
 
         .page-info {
             font-size: 14px;
-            color: #555;
+            color: #333;
             font-variant-numeric: tabular-nums;
-            min-width: 40px;
+            min-width: 45px;
             text-align: center;
+            font-weight: bold;
         }
 
         .jump-box {
             display: flex;
             align-items: center;
             gap: 5px;
+            border-left: 1px solid #ccc;
+            padding-left: 10px;
+            margin-left: 5px;
         }
 
         input[type="number"] {
             width: 45px;
             padding: 6px;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 6px;
             text-align: center;
             font-size: 14px;
         }
 
         /* 手機適配微調 */
-        @media (max-width: 600px) {
-            .controls {
+        @media (max-width: 400px) {
+            .control-panel {
+                padding: 8px 10px;
+                gap: 5px;
                 width: 95%;
                 justify-content: space-between;
-                padding: 5px 10px;
             }
-            button { padding: 8px 12px; font-size: 13px; }
+            button { padding: 8px 10px; font-size: 13px; }
             .jump-box input { width: 35px; }
         }
     </style>
 </head>
 <body>
 
-    <div class="viewport-container">
-        <div class="book-stage">
+    <div class="viewport-container" id="touch-zone">
+        <div class="stage-area">
             <div class="book" id="book">
                 <div class="page" style="z-index: 2;" id="page-0">
                     <img src="0.JPG" alt="Page 0">
@@ -209,15 +200,17 @@
         </div>
 
         <div class="controls">
-            <button id="btn-prev" onclick="prevPage()">上一頁</button>
-            <span class="page-info">
-                <span id="current-page">1</span> / <span id="total-pages">2</span>
-            </span>
-            <button id="btn-next" onclick="nextPage()">下一頁</button>
-            
-            <div class="jump-box">
-                <input type="number" id="jump-input" min="1" placeholder="頁">
-                <button onclick="jumpToPage()">GO</button>
+            <div class="control-panel">
+                <button id="btn-prev" onclick="prevPage()">上一頁</button>
+                <span class="page-info">
+                    <span id="current-page">1</span> / <span id="total-pages">2</span>
+                </span>
+                <button id="btn-next" onclick="nextPage()">下一頁</button>
+                
+                <div class="jump-box">
+                    <input type="number" id="jump-input" min="1" placeholder="頁">
+                    <button onclick="jumpToPage()">GO</button>
+                </div>
             </div>
         </div>
     </div>
@@ -227,34 +220,47 @@
         const totalImages = 2; 
         let currentPageIndex = 0; 
 
-        const book = document.getElementById('book');
+        // DOM 元素
         const pageCountSpan = document.getElementById('total-pages');
         const currentSpan = document.getElementById('current-page');
         const btnPrev = document.getElementById('btn-prev');
         const btnNext = document.getElementById('btn-next');
         const pages = document.querySelectorAll('.page');
+        const touchZone = document.getElementById('touch-zone');
 
         function init() {
             pageCountSpan.innerText = totalImages;
             updateZIndexes();
             updateControls();
 
-            // 觸控翻頁
+            // --- 修復滑動偵測 ---
             let touchStartX = 0;
             let touchEndX = 0;
             
-            book.addEventListener('touchstart', e => {
+            // 監聽整個容器，確保手指點在哪都能感應
+            touchZone.addEventListener('touchstart', e => {
                 touchStartX = e.changedTouches[0].screenX;
-            });
+            }, { passive: false });
             
-            book.addEventListener('touchend', e => {
+            // 重要：防止滑動時觸發瀏覽器的預設行為（如滾動頁面），讓滑動更靈敏
+            touchZone.addEventListener('touchmove', e => {
+                // 如果是水平滑動，阻止預設行為
+                e.preventDefault(); 
+            }, { passive: false });
+
+            touchZone.addEventListener('touchend', e => {
                 touchEndX = e.changedTouches[0].screenX;
                 handleSwipe();
-            });
+            }, { passive: false });
 
             function handleSwipe() {
-                if (touchEndX < touchStartX - 50) nextPage();
-                if (touchEndX > touchStartX + 50) prevPage();
+                const threshold = 40; // 滑動靈敏度
+                if (touchEndX < touchStartX - threshold) {
+                    nextPage(); // 向左滑 -> 下一頁
+                }
+                if (touchEndX > touchStartX + threshold) {
+                    prevPage(); // 向右滑 -> 上一頁
+                }
             }
         }
 
