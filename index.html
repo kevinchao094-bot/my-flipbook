@@ -2,111 +2,117 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
     <style>
-        /* 關鍵修正：使用 Flexbox 佈局 
-           這能確保「控制列」永遠在最下面，「書本」自動填滿剩下的空間
-        */
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%; /* 舊瀏覽器相容 */
-            height: 100dvh; /* 針對手機動態高度優化 */
-            overflow: hidden; /* 禁止整個頁面捲動 */
-            background-color: #f0f0f0;
-            font-family: sans-serif;
-        }
-
-        body {
-            display: flex;
-            flex-direction: column; /* 垂直排列：上面是書，下面是按鈕 */
-        }
-
-        /* --- 上半部：書本顯示區 --- */
-        .book-wrapper {
-            flex: 1; /* 自動佔據剩餘的所有空間 */
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden; /* 如果書太大，強制藏起來避免撐開頁面 */
-            position: relative;
-            padding: 10px; /* 四周留白，避免貼邊 */
-            box-sizing: border-box;
-            
-            /* 測試用：如果您看到紅色框框完整，但圖片被切，代表是圖片比例問題 */
-            /* border: 2px solid red; */ 
-        }
-
-        #book {
-            /* 書本陰影 */
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        .page {
-            background-color: white;
-            /* 確保頁面內容不會溢出 */
+        /* 1. 頁面基礎設定 */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #e0e0e0; /* 背景深一點點，讓白紙更明顯 */
+            height: 100vh; 
+            height: 100dvh; 
             overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            position: relative; /* 為了絕對定位控制列 */
         }
 
-        .page img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain; /* 確保圖片完整顯示，不會被裁切 */
+        /* 2. 書本容器：這就是「縮小」的關鍵 */
+        .container { 
+            /* 使用絕對定位，強制上下左右都留出空間 
+               top: 20px (避開上方網址列)
+               bottom: 100px (避開下方控制列)
+            */
+            position: absolute;
+            top: 40px; 
+            bottom: 110px; 
+            left: 20px;
+            right: 20px;
+            
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
         }
 
-        /* --- 下半部：控制面板 --- */
+        /* 書本本體 */
+        #book { 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); /* 加深陰影，增加立體感 */
+        }
+
+        /* 3. 圖片顯示區域：確保不切邊 */
+        .page { 
+            background-color: white; 
+            width: 100%; 
+            height: 100%; 
+            padding: 0; 
+            overflow: hidden;
+        }
+        
+        .page img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain; /* 關鍵：強制圖片「完整塞入」，絕不裁切 */
+        }
+
+        /* 4. 底部控制列：固定在最下方 */
         .controls {
-            flex-shrink: 0; /* 禁止被壓縮 */
-            height: 80px;   /* 固定高度 */
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 90px;
             background-color: #fff;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px;
-            z-index: 100;
+            gap: 15px;
             
-            /* iPhone 底部安全區適配 */
+            /* 針對 iPhone X 以上的底部黑條 (Home Bar) 進行避讓 */
             padding-bottom: env(safe-area-inset-bottom);
+            padding-bottom: 20px;
+            box-sizing: border-box;
+            z-index: 999;
         }
 
         .btn {
             background-color: #333;
             color: white;
             border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-size: 14px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 15px;
             cursor: pointer;
-            white-space: nowrap; /* 防止按鈕文字換行 */
+            font-weight: bold;
+            min-width: 60px;
         }
         
         .btn:active { background-color: #555; }
 
         .page-info {
-            font-size: 14px;
+            font-size: 16px;
             color: #333;
             font-weight: bold;
-            min-width: 50px;
+            min-width: 60px;
             text-align: center;
         }
 
         .jump-input {
-            width: 35px;
-            padding: 8px;
+            width: 45px;
+            padding: 10px;
             text-align: center;
             border: 1px solid #ccc;
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: 16px; 
+            background: #f8f8f8;
         }
     </style>
 </head>
 <body>
 
-<div class="book-wrapper">
+<div class="container">
     <div id="book">
         <div class="page"><img src="0.JPG"></div>
         <div class="page"><img src="1.JPG"></div>
@@ -121,7 +127,7 @@
     </div>
 
     <input type="number" id="jumpInput" class="jump-input" placeholder="#">
-    <button class="btn" id="goBtn">跳轉</button>
+    <button class="btn" id="goBtn">GO</button>
 
     <button class="btn" id="nextBtn">下一頁</button>
 </div>
@@ -133,26 +139,21 @@
         const bookElement = document.getElementById("book");
         
         const pageFlip = new St.PageFlip(bookElement, {
-            // 設定您的原始圖片比例
+            // 這裡設定畫布比例 (9:16)
             width: 1080, 
             height: 1920,
             
-            // 關鍵修改：讓書本適應容器，而不是強制固定大小
-            size: "stretch", 
+            // 使用 stretch 讓它自動去適應我們剛才縮小的 .container
+            size: "stretch",
             
-            // 縮小最小限制，讓它在小螢幕也能縮得夠小
-            minWidth: 200,   
-            minHeight: 300,
-            
+            minWidth: 300,
             maxWidth: 1000,
-            maxHeight: 1920,
+            minHeight: 400,
+            maxHeight: 1600,
             
             maxShadowOpacity: 0.5,
             showCover: true,
-            mobileScrollSupport: true,
-            
-            // 強制單頁模式 (在手機上更穩定)
-            usePortrait: true 
+            mobileScrollSupport: true
         });
 
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
@@ -165,25 +166,14 @@
             document.getElementById("currentPage").innerText = e.data + 1;
         });
 
-        document.getElementById("prevBtn").addEventListener('click', () => {
-            pageFlip.flipPrev();
-        });
-
-        document.getElementById("nextBtn").addEventListener('click', () => {
-            pageFlip.flipNext();
-        });
-
+        document.getElementById("prevBtn").addEventListener('click', () => pageFlip.flipPrev());
+        document.getElementById("nextBtn").addEventListener('click', () => pageFlip.flipNext());
+        
         document.getElementById("goBtn").addEventListener('click', () => {
-            const inputVal = document.getElementById("jumpInput").value;
-            const pageNum = parseInt(inputVal);
-            if (pageNum >= 1 && pageNum <= pageFlip.getPageCount()) {
-                pageFlip.flip(pageNum - 1); 
-            } else {
-                alert("頁數超出範圍！");
-            }
+            const val = parseInt(document.getElementById("jumpInput").value);
+            if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
         });
         
-        // 視窗大小改變時更新
         window.addEventListener('resize', () => {
             pageFlip.updateFromHtml(document.querySelectorAll(".page"));
         });
