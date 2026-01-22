@@ -5,114 +5,105 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>精拓生技 - 電子手冊</title>
     <style>
-        /* 1. 頁面基礎設定 */
+        /* 1. 全局重置 */
+        * { box-sizing: border-box; }
+
         body { 
             margin: 0; 
             padding: 0; 
-            background-color: #e0e0e0; /* 背景深一點點，讓白紙更明顯 */
-            height: 100vh; 
+            background-color: #333; /* 改深色背景，更有質感 */
+            
+            /* 使用 dvh (Dynamic Viewport Height) 
+               這會自動扣除手機瀏覽器的網址列高度 */
             height: 100dvh; 
-            overflow: hidden; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            width: 100vw;
+            
             display: flex;
             flex-direction: column;
-            position: relative; /* 為了絕對定位控制列 */
+            justify-content: center; /* 垂直置中 */
+            align-items: center;     /* 水平置中 */
+            overflow: hidden;        /* 禁止整個網頁捲動 */
         }
 
-        /* 2. 書本容器：這就是「縮小」的關鍵 */
-        .container { 
-            /* 使用絕對定位，強制上下左右都留出空間 
-               top: 20px (避開上方網址列)
-               bottom: 100px (避開下方控制列)
-            */
-            position: absolute;
-            top: 100px; 
-            bottom: 200px; 
-            left: 20px;
-            right: 20px;
-            
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
+        /* 2. 安全便當盒 (Stage)
+           我們不設定 top/bottom，而是直接給它一個絕對安全的高度比例。
+           70dvh 代表只佔螢幕高度的 70%，剩下 30% 留給上下介面，
+           這樣絕對不可能被切到。
+        */
+        .stage-container {
+            width: 100%;
+            height: 70dvh; /* 關鍵：縮小高度佔比 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
         }
 
-        /* 書本本體 */
+        /* 3. 書本本體 */
         #book { 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3); /* 加深陰影，增加立體感 */
+            /* 讓書本自動適應這個 70% 高度的盒子 */
+            height: 100% !important; 
+            width: auto !important;  /* 寬度自動，保持比例 */
+            aspect-ratio: 1080 / 1920; /* 強制鎖定比例 */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
 
-        /* 3. 圖片顯示區域：確保不切邊 */
+        /* 圖片設定 */
         .page { 
-            background-color: white; 
+            background-color: #fff;
             width: 100%; 
             height: 100%; 
-            padding: 0; 
             overflow: hidden;
         }
         
         .page img { 
             width: 100%; 
             height: 100%; 
-            object-fit: contain; /* 關鍵：強制圖片「完整塞入」，絕不裁切 */
+            object-fit: contain; /* 保證圖片完整顯示 */
         }
 
-        /* 4. 底部控制列：固定在最下方 */
+        /* 4. 底部控制列 */
         .controls {
-            position: absolute;
+            position: absolute; /* 固定在螢幕最下方 */
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 90px;
-            background-color: #fff;
-            box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+            height: 12dvh; /* 使用比例高度 */
+            background-color: #1a1a1a;
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 15px;
-            
-            /* 針對 iPhone X 以上的底部黑條 (Home Bar) 進行避讓 */
-            padding-bottom: env(safe-area-inset-bottom);
-            padding-bottom: 20px;
-            box-sizing: border-box;
+            padding-bottom: env(safe-area-inset-bottom); /* 避開 iPhone 橫條 */
             z-index: 999;
         }
 
         .btn {
-            background-color: #333;
+            background-color: #444;
             color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 15px;
+            border: 1px solid #555;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
             cursor: pointer;
-            font-weight: bold;
-            min-width: 60px;
         }
-        
-        .btn:active { background-color: #555; }
+        .btn:active { background-color: #666; }
 
-        .page-info {
-            font-size: 16px;
-            color: #333;
-            font-weight: bold;
-            min-width: 60px;
-            text-align: center;
-        }
+        .page-info { color: #fff; font-size: 14px; }
 
         .jump-input {
-            width: 45px;
-            padding: 10px;
+            width: 40px;
+            padding: 5px;
             text-align: center;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 16px; 
-            background: #f8f8f8;
+            background: #eee;
+            border: none;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="stage-container">
     <div id="book">
         <div class="page"><img src="0.JPG"></div>
         <div class="page"><img src="1.JPG"></div>
@@ -121,14 +112,9 @@
 
 <div class="controls">
     <button class="btn" id="prevBtn">上一頁</button>
-    
-    <div class="page-info">
-        <span id="currentPage">1</span> / <span id="totalPages">--</span>
-    </div>
-
+    <div class="page-info"><span id="currentPage">1</span> / <span id="totalPages">--</span></div>
     <input type="number" id="jumpInput" class="jump-input" placeholder="#">
-    <button class="btn" id="goBtn">GO</button>
-
+    <button class="btn" id="goBtn">Go</button>
     <button class="btn" id="nextBtn">下一頁</button>
 </div>
 
@@ -139,17 +125,18 @@
         const bookElement = document.getElementById("book");
         
         const pageFlip = new St.PageFlip(bookElement, {
-            // 這裡設定畫布比例 (9:16)
+            // 這裡只需要設定比例，實際大小由 CSS 控制
             width: 1080, 
             height: 1920,
             
-            // 使用 stretch 讓它自動去適應我們剛才縮小的 .container
+            // 改為 stretch，讓它填滿我們剛才畫好的 70dvh 盒子
             size: "stretch",
             
-            minWidth: 300,
-            maxWidth: 1000,
-            minHeight: 400,
-            maxHeight: 1600,
+            // 這些限制可以設寬鬆一點，因為外部 CSS 已經鎖死了
+            minWidth: 200,
+            maxWidth: 2000,
+            minHeight: 300,
+            maxHeight: 2000,
             
             maxShadowOpacity: 0.5,
             showCover: true,
@@ -159,8 +146,10 @@
         pageFlip.loadFromHTML(document.querySelectorAll(".page"));
 
         setTimeout(() => {
-            document.getElementById("totalPages").innerText = pageFlip.getPageCount();
-        }, 500);
+            // 安全檢查：如果抓不到頁數，預設顯示 0
+            const count = pageFlip.getPageCount();
+            document.getElementById("totalPages").innerText = count > 0 ? count : "-";
+        }, 1000); // 延長到 1 秒，確保載入完成
 
         pageFlip.on('flip', (e) => {
             document.getElementById("currentPage").innerText = e.data + 1;
@@ -173,7 +162,8 @@
             const val = parseInt(document.getElementById("jumpInput").value);
             if (val >= 1 && val <= pageFlip.getPageCount()) pageFlip.flip(val - 1);
         });
-        
+
+        // 旋轉螢幕時重新計算
         window.addEventListener('resize', () => {
             pageFlip.updateFromHtml(document.querySelectorAll(".page"));
         });
