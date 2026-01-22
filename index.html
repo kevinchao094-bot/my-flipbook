@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>精拓生技 電子書閱讀器</title>
+    <title>GitHub 電子書閱讀器</title>
     <style>
-        :root {
-            --bg-color: #333;
-        }
-
+        :root { --bg-color: #333; }
         * { box-sizing: border-box; }
 
         body {
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
-            height: 100dvh; /* 使用 dvh 避免手機網址列遮擋 */
+            height: 100dvh; /* 使用 dvh 確保填滿手機畫面 */
             width: 100vw;
-            overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            /* 關鍵：完全禁止瀏覽器的預設手勢，交給 JS 處理 */
+            overflow: hidden; /* 禁止網頁捲動 */
+            font-family: sans-serif;
+            /* 告訴瀏覽器這裡的滑動行為由我們處理 */
             touch-action: none; 
+            user-select: none; /* 禁止選取文字與圖片 */
+            -webkit-user-select: none;
         }
 
+        /* 主容器 */
         .viewport-container {
             width: 100%;
             height: 100%;
@@ -32,31 +32,45 @@
             align-items: center;
         }
 
-        /* --- 書本舞台區 --- */
+        /* 書本舞台區 */
         .stage-area {
             flex: 1;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden; /* 確保放大的圖片不會超出舞台 */
+            overflow: hidden; /* 確保放大時圖片不超出去 */
             perspective: 1500px;
             padding: 10px;
             position: relative;
         }
 
+        /* 提示文字 */
+        .hint-text {
+            position: absolute;
+            top: 20px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        /* 書本本體：鎖定 9:16 比例 */
         .book {
             position: relative;
             transform-style: preserve-3d;
-            /* 鎖定 9:16 比例 */
             aspect-ratio: 9 / 16;
             height: 100%;
             max-height: 100%;
             width: auto;
             max-width: 100%;
-            transition: transform 0.4s ease;
         }
 
+        /* 頁面 */
         .page {
             width: 100%;
             height: 100%;
@@ -64,45 +78,42 @@
             top: 0;
             left: 0;
             background-color: transparent;
-            border: none;
-            
+            /* 翻頁動畫 */
+            transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
             transform-origin: left center;
             transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
-            
+            backface-visibility: hidden;
             border-radius: 4px;
             display: flex;
             justify-content: center;
             align-items: center;
-            backface-visibility: hidden;
             overflow: hidden;
         }
 
-        /* 圖片容器：用於處理縮放動畫 */
-        .img-wrapper {
+        /* 圖片容器：負責縮放與位移 */
+        .img-container {
             width: 100%;
             height: 100%;
-            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
+            /* 縮放動畫：讓放大縮小有過渡效果 */
+            transition: transform 0.3s ease-out;
+            will-change: transform;
         }
 
         .page img {
             width: 100%;
             height: 100%;
-            object-fit: contain; /* 保持比例 */
-            /* 縮放動畫 */
-            transition: transform 0.2s ease-out; 
-            transform-origin: center center;
-            will-change: transform; /* 效能優化 */
+            object-fit: contain; /* 確保完整顯示 */
+            pointer-events: none; /* 讓點擊穿透到容器 */
         }
 
-        .page.flipped {
-            transform: rotateY(-180deg);
-        }
+        /* 翻頁效果 */
+        .page.flipped { transform: rotateY(-180deg); }
+        .page.active { z-index: 10; }
 
-        /* --- 控制區 --- */
+        /* 控制列 */
         .controls {
             flex-shrink: 0;
             height: 80px;
@@ -110,7 +121,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 15px;
             background: rgba(0, 0, 0, 0.3);
             padding-bottom: env(safe-area-inset-bottom);
             z-index: 100;
@@ -122,7 +132,7 @@
             border-radius: 30px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
@@ -130,75 +140,34 @@
             border: none;
             background: #333;
             color: #fff;
-            padding: 8px 16px;
+            padding: 10px 16px;
             border-radius: 20px;
-            cursor: pointer;
             font-size: 14px;
-            white-space: nowrap;
         }
-
-        button:active { background: #555; }
-        button:disabled { background: #ccc; opacity: 0.5; cursor: not-allowed; }
-
-        .page-info {
-            font-size: 14px;
-            color: #333;
-            min-width: 45px;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        .jump-box {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            border-left: 1px solid #ccc;
-            padding-left: 10px;
-        }
-
-        input[type="number"] {
-            width: 45px;
-            padding: 6px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            text-align: center;
-        }
+        button:disabled { background: #ccc; opacity: 0.5; }
         
-        /* 縮放提示按鈕 (選用) */
-        .zoom-hint {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0.7;
-            z-index: 50;
-        }
-
-        @media (max-width: 400px) {
-            .control-panel { padding: 8px 10px; gap: 5px; width: 95%; justify-content: space-between; }
-            button { padding: 8px 10px; font-size: 13px; }
-        }
+        .page-info { font-weight: bold; color: #333; min-width: 50px; text-align: center; }
+        
+        /* 輸入框微調 */
+        .jump-box { display: flex; gap: 5px; border-left: 1px solid #ccc; padding-left: 10px; }
+        input { width: 40px; text-align: center; border-radius: 5px; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
 
-    <div class="viewport-container" id="touch-zone">
+    <div class="viewport-container" id="touch-layer">
         <div class="stage-area">
-            <div class="zoom-hint">雙擊圖片縮放</div>
+            <div class="hint-text" id="status-hint">滑動翻頁 • 雙擊放大</div>
+            
             <div class="book" id="book">
-                <div class="page" style="z-index: 2;" id="page-0">
-                    <div class="img-wrapper">
-                        <img src="0.JPG" alt="Page 0" id="img-0">
+                <div class="page active" id="page-0">
+                    <div class="img-container" id="zoom-container-0">
+                        <img src="0.JPG" alt="Page 1">
                     </div>
                 </div>
-                <div class="page" style="z-index: 1;" id="page-1">
-                    <div class="img-wrapper">
-                        <img src="1.JPG" alt="Page 1" id="img-1">
+                <div class="page" id="page-1">
+                    <div class="img-container" id="zoom-container-1">
+                        <img src="1.JPG" alt="Page 2">
                     </div>
                 </div>
             </div>
@@ -206,14 +175,14 @@
 
         <div class="controls">
             <div class="control-panel">
-                <button id="btn-prev" onclick="handleBtnPrev()">上一頁</button>
+                <button id="btn-prev" onclick="manualPrev()">上一頁</button>
                 <span class="page-info">
                     <span id="current-page">1</span> / <span id="total-pages">2</span>
                 </span>
-                <button id="btn-next" onclick="handleBtnNext()">下一頁</button>
+                <button id="btn-next" onclick="manualNext()">下一頁</button>
                 
                 <div class="jump-box">
-                    <input type="number" id="jump-input" min="1" placeholder="頁">
+                    <input type="number" id="jump-input" placeholder="頁">
                     <button onclick="jumpToPage()">GO</button>
                 </div>
             </div>
@@ -221,231 +190,228 @@
     </div>
 
     <script>
-        // 設定
-        const totalImages = 2; 
-        let currentPageIndex = 0; 
+        // 設定總頁數
+        const totalImages = 2;
+        let currentIndex = 0;
 
-        // 縮放相關變數
+        // 縮放狀態管理
         let isZoomed = false;
-        let scale = 1;
-        let translateX = 0;
-        let translateY = 0;
-        
+        let currentScale = 1;
+        let currentTranslateX = 0;
+        let currentTranslateY = 0;
+
         // 觸控變數
         let lastTapTime = 0;
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let lastTouchX = 0;
-        let lastTouchY = 0;
+        let startX = 0;
+        let startY = 0;
+        let lastMoveX = 0;
+        let lastMoveY = 0;
+        let isDragging = false;
 
-        // DOM
-        const pageCountSpan = document.getElementById('total-pages');
-        const currentSpan = document.getElementById('current-page');
-        const btnPrev = document.getElementById('btn-prev');
-        const btnNext = document.getElementById('btn-next');
-        const pages = document.querySelectorAll('.page');
-        const touchZone = document.getElementById('touch-zone');
+        // DOM 元素
+        const touchLayer = document.getElementById('touch-layer');
+        const hintText = document.getElementById('status-hint');
 
+        // 初始化
         function init() {
-            pageCountSpan.innerText = totalImages;
-            updateZIndexes();
-            updateControls();
-            setupTouchEvents();
-        }
-
-        // --- 核心：觸控事件處理 ---
-        function setupTouchEvents() {
-            touchZone.addEventListener('touchstart', e => {
-                const touch = e.touches[0];
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTapTime;
-
-                // 紀錄初始位置
-                touchStartX = touch.clientX;
-                touchStartY = touch.clientY;
-                lastTouchX = touch.clientX;
-                lastTouchY = touch.clientY;
-
-                // 偵測雙擊 (Double Tap)
-                if (tapLength < 300 && tapLength > 0) {
-                    toggleZoom();
-                    e.preventDefault(); // 防止瀏覽器預設縮放
-                }
-                lastTapTime = currentTime;
-
-            }, { passive: false });
-
-            touchZone.addEventListener('touchmove', e => {
-                e.preventDefault(); // 阻止瀏覽器滾動
-                
-                if (e.touches.length > 1) return; // 暫不處理多指縮放，避免複雜
-
-                const touch = e.touches[0];
-                const deltaX = touch.clientX - lastTouchX;
-                const deltaY = touch.clientY - lastTouchY;
-
-                if (isZoomed) {
-                    // 1. 如果已放大 -> 執行拖曳 (Pan)
-                    translateX += deltaX;
-                    translateY += deltaY;
-                    applyTransform();
-                } else {
-                    // 2. 如果未放大 -> 等待手指放開後判斷翻頁，這裡不做事
-                }
-
-                lastTouchX = touch.clientX;
-                lastTouchY = touch.clientY;
-            }, { passive: false });
-
-            touchZone.addEventListener('touchend', e => {
-                if (isZoomed) return; // 放大狀態下，放開手指不翻頁
-
-                const touchEndX = e.changedTouches[0].clientX;
-                const totalDeltaX = touchEndX - touchStartX;
-                const threshold = 50; // 翻頁靈敏度
-
-                // 判斷滑動翻頁
-                if (Math.abs(totalDeltaX) > threshold) {
-                    if (totalDeltaX < 0) {
-                        nextPage(); // 向左滑
-                    } else {
-                        prevPage(); // 向右滑
-                    }
-                }
-            }, { passive: false });
-        }
-
-        // --- 縮放功能 ---
-        function toggleZoom() {
-            const currentImg = document.getElementById(`img-${currentPageIndex}`);
+            document.getElementById('total-pages').innerText = totalImages;
+            updateUI();
             
+            // 綁定觸控事件 (核心邏輯)
+            touchLayer.addEventListener('touchstart', handleTouchStart, { passive: false });
+            touchLayer.addEventListener('touchmove', handleTouchMove, { passive: false });
+            touchLayer.addEventListener('touchend', handleTouchEnd, { passive: false });
+        }
+
+        // --- 1. 觸控開始 ---
+        function handleTouchStart(e) {
+            const touch = e.touches[0];
+            const now = new Date().getTime();
+            
+            // 記錄起始位置
+            startX = touch.clientX;
+            startY = touch.clientY;
+            lastMoveX = startX;
+            lastMoveY = startY;
+            isDragging = false;
+
+            // 判斷雙擊 (Double Tap)
+            if (now - lastTapTime < 300) {
+                // 如果兩次點擊間隔小於 300ms，視為雙擊
+                e.preventDefault(); // 防止瀏覽器原生縮放
+                toggleZoom();
+            }
+            lastTapTime = now;
+        }
+
+        // --- 2. 觸控移動 ---
+        function handleTouchMove(e) {
+            e.preventDefault(); // 禁止瀏覽器預設捲動行為，這是滑動能生效的關鍵！
+
+            if (e.touches.length > 1) return; // 暫不處理多指縮放
+            
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - lastMoveX;
+            const deltaY = touch.clientY - lastMoveY;
+
+            isDragging = true;
+
+            // 邏輯分流：
             if (isZoomed) {
-                // 還原
-                scale = 1;
-                translateX = 0;
-                translateY = 0;
-                isZoomed = false;
-                // 恢復翻頁按鈕
-                btnPrev.disabled = currentPageIndex === 0;
-                btnNext.disabled = currentPageIndex === totalImages - 1;
+                // A. 縮放模式：移動圖片 (Pan)
+                currentTranslateX += deltaX;
+                currentTranslateY += deltaY;
+                applyTransform();
             } else {
-                // 放大
-                scale = 2.5; // 放大 2.5 倍
+                // B. 正常模式：這裡只記錄，等到手指放開時判斷是否為翻頁滑動
+                // (不需要即時反應，以免誤觸)
+            }
+
+            lastMoveX = touch.clientX;
+            lastMoveY = touch.clientY;
+        }
+
+        // --- 3. 觸控結束 ---
+        function handleTouchEnd(e) {
+            // 如果是在縮放模式下拖曳，結束時不需要做翻頁判斷
+            if (isZoomed) return;
+
+            // 如果沒有明顯的拖曳行為，就不算滑動
+            if (!isDragging) return;
+
+            const endX = e.changedTouches[0].clientX;
+            const diffX = endX - startX;
+            const threshold = 50; // 滑動門檻值 (像素)
+
+            // 判斷滑動方向
+            if (Math.abs(diffX) > threshold) {
+                if (diffX < 0) {
+                    nextPage(); // 向左滑 -> 下一頁
+                } else {
+                    prevPage(); // 向右滑 -> 上一頁
+                }
+            }
+        }
+
+        // --- 縮放邏輯 (Zoom Logic) ---
+        function toggleZoom() {
+            if (isZoomed) {
+                // 還原 (Reset)
+                currentScale = 1;
+                currentTranslateX = 0;
+                currentTranslateY = 0;
+                isZoomed = false;
+                hintText.innerText = "滑動翻頁 • 雙擊放大";
+                enableControls(true); // 啟用翻頁按鈕
+            } else {
+                // 放大 (Zoom In)
+                currentScale = 2.5; // 放大倍率
                 isZoomed = true;
-                // 放大時禁用翻頁按鈕，避免誤觸
-                btnPrev.disabled = true;
-                btnNext.disabled = true;
+                hintText.innerText = "拖曳移動 • 雙擊還原";
+                enableControls(false); // 放大時禁用翻頁按鈕，避免誤觸
             }
             applyTransform();
         }
 
         function applyTransform() {
-            const currentImg = document.getElementById(`img-${currentPageIndex}`);
-            if (currentImg) {
-                // 使用 CSS transform 移動與縮放
-                currentImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+            // 獲取當前頁面的圖片容器
+            const container = document.getElementById(`zoom-container-${currentIndex}`);
+            if (container) {
+                container.style.transform = `translate(${currentTranslateX}px, ${currentTranslateY}px) scale(${currentScale})`;
             }
         }
 
-        function resetZoomState() {
-            // 換頁時，強制重置縮放狀態
+        function resetZoom() {
+            // 切換頁面時，強制重置所有縮放狀態
             if (isZoomed) {
-                const prevImg = document.getElementById(`img-${currentPageIndex}`); // 舊頁面
-                if(prevImg) prevImg.style.transform = 'translate(0,0) scale(1)';
+                const prevContainer = document.getElementById(`zoom-container-${currentIndex}`);
+                if (prevContainer) prevContainer.style.transform = `translate(0px, 0px) scale(1)`;
                 
-                scale = 1;
-                translateX = 0;
-                translateY = 0;
                 isZoomed = false;
+                currentScale = 1;
+                currentTranslateX = 0;
+                currentTranslateY = 0;
+                hintText.innerText = "滑動翻頁 • 雙擊放大";
+                enableControls(true);
             }
         }
 
         // --- 翻頁邏輯 ---
         function nextPage() {
-            if (isZoomed) return; // 放大時禁止翻頁
-            if (currentPageIndex >= totalImages - 1) return;
-
-            resetZoomState(); // 確保下一頁是從原始大小開始
+            if (currentIndex >= totalImages - 1) return;
+            resetZoom(); // 換頁前先重置縮放
             
-            const currentEl = document.getElementById(`page-${currentPageIndex}`);
-            currentEl.classList.add('flipped');
-            currentPageIndex++;
+            document.getElementById(`page-${currentIndex}`).classList.add('flipped');
+            currentIndex++;
             updateUI();
         }
 
         function prevPage() {
-            if (isZoomed) return;
-            if (currentPageIndex <= 0) return;
+            if (currentIndex <= 0) return;
+            resetZoom();
 
-            resetZoomState();
-
-            currentPageIndex--;
-            const prevEl = document.getElementById(`page-${currentPageIndex}`);
-            prevEl.classList.remove('flipped');
+            currentIndex--;
+            document.getElementById(`page-${currentIndex}`).classList.remove('flipped');
             updateUI();
         }
 
-        // 按鈕觸發的翻頁（需判斷是否在放大模式）
-        function handleBtnNext() {
-            if (isZoomed) toggleZoom(); // 如果在放大模式點下一頁，先縮小
-            else nextPage();
-        }
-
-        function handleBtnPrev() {
-            if (isZoomed) toggleZoom();
-            else prevPage();
-        }
+        // 按鈕觸發
+        function manualNext() { if(!isZoomed) nextPage(); }
+        function manualPrev() { if(!isZoomed) prevPage(); }
 
         function jumpToPage() {
             const input = document.getElementById('jump-input');
             let targetPage = parseInt(input.value);
-
-            if (isNaN(targetPage) || targetPage < 1 || targetPage > totalImages) {
-                alert('請輸入有效的頁碼');
-                return;
-            }
-
-            resetZoomState(); // 跳轉前重置
-
+            if (isNaN(targetPage) || targetPage < 1 || targetPage > totalImages) return;
+            
+            resetZoom();
             let targetIndex = targetPage - 1;
 
-            if (targetIndex > currentPageIndex) {
-                for (let i = currentPageIndex; i < targetIndex; i++) {
+            // 處理翻頁動畫
+            if (targetIndex > currentIndex) {
+                for (let i = currentIndex; i < targetIndex; i++) {
                     document.getElementById(`page-${i}`).classList.add('flipped');
                 }
-            } 
-            else if (targetIndex < currentPageIndex) {
-                for (let i = currentPageIndex - 1; i >= targetIndex; i--) {
+            } else {
+                for (let i = currentIndex - 1; i >= targetIndex; i--) {
                     document.getElementById(`page-${i}`).classList.remove('flipped');
                 }
             }
-
-            currentPageIndex = targetIndex;
+            currentIndex = targetIndex;
             updateUI();
             input.value = '';
         }
 
-        function updateZIndexes() {
-            pages.forEach((page, index) => {
-                if (index > currentPageIndex) {
-                    page.style.zIndex = totalImages - index;
-                    page.style.display = 'flex';
-                } else if (index === currentPageIndex) {
-                      page.style.zIndex = totalImages + 1;
-                      page.style.display = 'flex';
-                } else {
-                    page.style.zIndex = index;
-                }
-            });
-        }
-
+        // --- UI 更新 ---
         function updateUI() {
-            currentSpan.innerText = currentPageIndex + 1;
-            btnPrev.disabled = currentPageIndex === 0;
-            btnNext.disabled = currentPageIndex === totalImages - 1;
-            updateZIndexes();
+            // 更新 Z-Index 確保層級正確
+            for (let i = 0; i < totalImages; i++) {
+                const page = document.getElementById(`page-${i}`);
+                if (i > currentIndex) {
+                    page.style.zIndex = totalImages - i;
+                    page.style.display = 'flex';
+                } else if (i === currentIndex) {
+                    page.style.zIndex = totalImages + 1;
+                    page.style.display = 'flex';
+                    page.classList.add('active');
+                } else {
+                    page.style.zIndex = i;
+                    page.classList.remove('active');
+                }
+            }
+
+            // 更新按鈕狀態
+            document.getElementById('current-page').innerText = currentIndex + 1;
+            document.getElementById('btn-prev').disabled = (currentIndex === 0);
+            document.getElementById('btn-next').disabled = (currentIndex === totalImages - 1);
         }
 
+        function enableControls(enabled) {
+            document.getElementById('btn-prev').disabled = !enabled || currentIndex === 0;
+            document.getElementById('btn-next').disabled = !enabled || currentIndex === totalImages - 1;
+        }
+
+        // 啟動
         init();
     </script>
 </body>
